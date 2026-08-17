@@ -1,0 +1,39 @@
+# dependencies
+node_modules/
+
+# env files — NEVER commit real secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# next.js
+.next/
+out/
+
+# production build
+build/
+dist/
+
+# misc
+.DS_Store
+*.pem
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# testing
+coverage/
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# algokit
+.algokit/
