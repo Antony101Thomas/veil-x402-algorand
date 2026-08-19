@@ -1,0 +1,342 @@
+#pragma version 11
+#pragma typetrack false
+
+// @algorandfoundation/algorand-typescript/arc4/index.d.ts::Contract.approvalProgram() -> uint64:
+main:
+    intcblock 0 1 2 8
+    bytecblock "cap_" 0x00 0x151f7c75
+    // contracts/veil_capability/contract.algo.ts:27
+    // export class VeilCapability extends arc4.Contract {
+    txn NumAppArgs
+    bz main___algots__.defaultCreate@11
+    txn OnCompletion
+    !
+    assert
+    txn ApplicationID
+    assert
+    pushbytess 0x199ca853 0x80c12edb 0x67249fae 0x392edcd5 // method "createCapability(string,string,string,uint64,uint64,address)void", method "getCapability(string)(string,string,uint64,uint64,address,bool)", method "revokeCapability(string)void", method "isValid(string,address)bool"
+    txna ApplicationArgs 0
+    match createCapability getCapability revokeCapability isValid
+    err
+
+main___algots__.defaultCreate@11:
+    // contracts/veil_capability/contract.algo.ts:27
+    // export class VeilCapability extends arc4.Contract {
+    txn OnCompletion
+    !
+    txn ApplicationID
+    !
+    &&
+    return
+
+
+// contracts/veil_capability/contract.algo.ts::VeilCapability.createCapability[routing]() -> void:
+createCapability:
+    // contracts/veil_capability/contract.algo.ts:37
+    // @arc4.abimethod()
+    txna ApplicationArgs 1
+    dup
+    intc_0 // 0
+    extract_uint16 // on error: invalid array length header
+    intc_2 // 2
+    +
+    dig 1
+    len
+    ==
+    assert // invalid number of bytes for arc4.dynamic_array<arc4.uint8>
+    txna ApplicationArgs 2
+    dup
+    intc_0 // 0
+    extract_uint16 // on error: invalid array length header
+    intc_2 // 2
+    +
+    dig 1
+    len
+    dup
+    uncover 2
+    ==
+    assert // invalid number of bytes for arc4.dynamic_array<arc4.uint8>
+    txna ApplicationArgs 3
+    dup
+    intc_0 // 0
+    extract_uint16 // on error: invalid array length header
+    intc_2 // 2
+    +
+    dig 1
+    len
+    ==
+    assert // invalid number of bytes for arc4.dynamic_array<arc4.uint8>
+    txna ApplicationArgs 4
+    dup
+    len
+    intc_3 // 8
+    ==
+    assert // invalid number of bytes for arc4.uint64
+    txna ApplicationArgs 5
+    dup
+    len
+    intc_3 // 8
+    ==
+    assert // invalid number of bytes for arc4.uint64
+    txna ApplicationArgs 6
+    dup
+    len
+    pushint 32
+    ==
+    assert // invalid number of bytes for arc4.static_array<arc4.uint8, 32>
+    // contracts/veil_capability/contract.algo.ts:46
+    // assert(Txn.sender === Global.creatorAddress, 'only admin can issue capabilities');
+    txn Sender
+    global CreatorAddress
+    ==
+    assert // only admin can issue capabilities
+    // contracts/veil_capability/contract.algo.ts:29
+    // capabilities = BoxMap<arc4.Str, Capability>({ keyPrefix: 'cap_' });
+    bytec_0 // "cap_"
+    uncover 7
+    concat
+    // contracts/veil_capability/contract.algo.ts:47
+    // assert(!this.capabilities(credentialId).exists, 'credential id already used');
+    dup
+    box_len
+    bury 1
+    !
+    assert // credential id already used
+    // contracts/veil_capability/contract.algo.ts:49-56
+    // this.capabilities(credentialId).value = new Capability({
+    //   resourceId,
+    //   action,
+    //   quota,
+    //   expiryRound,
+    //   holder,
+    //   revoked: new arc4.Bool(false),
+    // });
+    pushint 53
+    uncover 6
+    +
+    itob
+    extract 6 2
+    pushbytes 0x0035
+    swap
+    concat
+    uncover 4
+    concat
+    uncover 3
+    concat
+    uncover 2
+    concat
+    // contracts/veil_capability/contract.algo.ts:55
+    // revoked: new arc4.Bool(false),
+    bytec_1 // 0x00
+    // contracts/veil_capability/contract.algo.ts:49-56
+    // this.capabilities(credentialId).value = new Capability({
+    //   resourceId,
+    //   action,
+    //   quota,
+    //   expiryRound,
+    //   holder,
+    //   revoked: new arc4.Bool(false),
+    // });
+    concat
+    uncover 3
+    concat
+    uncover 2
+    concat
+    dig 1
+    box_del
+    pop
+    box_put
+    // contracts/veil_capability/contract.algo.ts:37
+    // @arc4.abimethod()
+    intc_1 // 1
+    return
+
+
+// contracts/veil_capability/contract.algo.ts::VeilCapability.getCapability[routing]() -> void:
+getCapability:
+    // contracts/veil_capability/contract.algo.ts:63
+    // @arc4.abimethod({ readonly: true })
+    txna ApplicationArgs 1
+    dup
+    intc_0 // 0
+    extract_uint16 // on error: invalid array length header
+    intc_2 // 2
+    +
+    dig 1
+    len
+    ==
+    assert // invalid number of bytes for arc4.dynamic_array<arc4.uint8>
+    // contracts/veil_capability/contract.algo.ts:29
+    // capabilities = BoxMap<arc4.Str, Capability>({ keyPrefix: 'cap_' });
+    bytec_0 // "cap_"
+    swap
+    concat
+    // contracts/veil_capability/contract.algo.ts:65
+    // assert(this.capabilities(credentialId).exists, 'unknown credential');
+    dup
+    box_len
+    bury 1
+    assert // unknown credential
+    // contracts/veil_capability/contract.algo.ts:66
+    // return clone(this.capabilities(credentialId).value);
+    box_get
+    pop
+    // contracts/veil_capability/contract.algo.ts:63
+    // @arc4.abimethod({ readonly: true })
+    bytec_2 // 0x151f7c75
+    swap
+    concat
+    log
+    intc_1 // 1
+    return
+
+
+// contracts/veil_capability/contract.algo.ts::VeilCapability.revokeCapability[routing]() -> void:
+revokeCapability:
+    // contracts/veil_capability/contract.algo.ts:73
+    // @arc4.abimethod()
+    txna ApplicationArgs 1
+    dup
+    intc_0 // 0
+    extract_uint16 // on error: invalid array length header
+    intc_2 // 2
+    +
+    dig 1
+    len
+    ==
+    assert // invalid number of bytes for arc4.dynamic_array<arc4.uint8>
+    // contracts/veil_capability/contract.algo.ts:75
+    // assert(Txn.sender === Global.creatorAddress, 'only admin can revoke');
+    txn Sender
+    global CreatorAddress
+    ==
+    assert // only admin can revoke
+    // contracts/veil_capability/contract.algo.ts:29
+    // capabilities = BoxMap<arc4.Str, Capability>({ keyPrefix: 'cap_' });
+    bytec_0 // "cap_"
+    swap
+    concat
+    // contracts/veil_capability/contract.algo.ts:76
+    // assert(this.capabilities(credentialId).exists, 'unknown credential');
+    dup
+    box_len
+    bury 1
+    assert // unknown credential
+    // contracts/veil_capability/contract.algo.ts:79-80
+    // cap.revoked = new arc4.Bool(true);
+    // this.capabilities(credentialId).value = clone(cap);
+    dup
+    pushint 52
+    intc_1 // 1
+    box_extract
+    intc_0 // 0
+    // contracts/veil_capability/contract.algo.ts:79
+    // cap.revoked = new arc4.Bool(true);
+    intc_1 // 1
+    // contracts/veil_capability/contract.algo.ts:79-80
+    // cap.revoked = new arc4.Bool(true);
+    // this.capabilities(credentialId).value = clone(cap);
+    setbit
+    pushint 52
+    swap
+    box_replace // on error: index out of bounds
+    // contracts/veil_capability/contract.algo.ts:73
+    // @arc4.abimethod()
+    intc_1 // 1
+    return
+
+
+// contracts/veil_capability/contract.algo.ts::VeilCapability.isValid[routing]() -> void:
+isValid:
+    // contracts/veil_capability/contract.algo.ts:88
+    // @arc4.abimethod({ readonly: true })
+    txna ApplicationArgs 1
+    dup
+    intc_0 // 0
+    extract_uint16 // on error: invalid array length header
+    intc_2 // 2
+    +
+    dig 1
+    len
+    ==
+    assert // invalid number of bytes for arc4.dynamic_array<arc4.uint8>
+    txna ApplicationArgs 2
+    dup
+    cover 2
+    len
+    pushint 32
+    ==
+    assert // invalid number of bytes for arc4.static_array<arc4.uint8, 32>
+    // contracts/veil_capability/contract.algo.ts:29
+    // capabilities = BoxMap<arc4.Str, Capability>({ keyPrefix: 'cap_' });
+    bytec_0 // "cap_"
+    swap
+    concat
+    dup
+    // contracts/veil_capability/contract.algo.ts:90
+    // if (!this.capabilities(credentialId).exists) {
+    box_len
+    bury 1
+    bnz isValid_after_if_else@3
+    popn 2
+    // contracts/veil_capability/contract.algo.ts:91
+    // return new arc4.Bool(false);
+    bytec_1 // 0x00
+
+isValid_after_inlined_contracts/veil_capability/contract.algo.ts::VeilCapability.isValid@4:
+    // contracts/veil_capability/contract.algo.ts:88
+    // @arc4.abimethod({ readonly: true })
+    bytec_2 // 0x151f7c75
+    swap
+    concat
+    log
+    intc_1 // 1
+    return
+
+isValid_after_if_else@3:
+    // contracts/veil_capability/contract.algo.ts:94-95
+    // const cap = clone(this.capabilities(credentialId).value);
+    // const notRevoked = !cap.revoked.native;
+    dup
+    pushint 52
+    intc_1 // 1
+    box_extract // on error: index out of bounds
+    intc_0 // 0
+    getbit
+    // contracts/veil_capability/contract.algo.ts:95
+    // const notRevoked = !cap.revoked.native;
+    bytec_1 // 0x00
+    intc_0 // 0
+    uncover 2
+    setbit
+    intc_0 // 0
+    getbit
+    !
+    // contracts/veil_capability/contract.algo.ts:96
+    // const notExpired = cap.expiryRound.asUint64() >= op.Global.round;
+    dig 1
+    pushint 12
+    intc_3 // 8
+    box_extract // on error: index out of bounds
+    btoi
+    global Round
+    >=
+    // contracts/veil_capability/contract.algo.ts:97
+    // const holderMatches = cap.holder.bytes === holder.bytes;
+    uncover 2
+    pushints 20 32
+    box_extract // on error: index out of bounds
+    uncover 3
+    ==
+    // contracts/veil_capability/contract.algo.ts:99
+    // return new arc4.Bool(notRevoked && notExpired && holderMatches);
+    cover 2
+    &&
+    &&
+    bytec_1 // 0x00
+    intc_0 // 0
+    uncover 2
+    setbit
+    // contracts/veil_capability/contract.algo.ts:88
+    // @arc4.abimethod({ readonly: true })
+    b isValid_after_inlined_contracts/veil_capability/contract.algo.ts::VeilCapability.isValid@4

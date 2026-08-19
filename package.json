@@ -9,12 +9,20 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@algorandfoundation/algokit-utils": "^9.2.0",
+    "@x402/avm": "^2.23.0",
+    "@x402/core": "^2.23.0",
+    "@x402/fetch": "^2.23.0",
+    "@x402/next": "^2.23.0",
+    "algosdk": "^3.6.0",
     "next": "16.3.1",
     "pg": "^8.23.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@algorandfoundation/algorand-typescript": "^1.2.0",
+    "@algorandfoundation/puya-ts": "^1.2.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/pg": "^8.21.0",
