@@ -1,26 +1,53 @@
-@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap');
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --font-body: 'Roboto', system-ui, sans-serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* Light — default YouTube look: white surface, near-black text, red accent */
+[data-theme='light'] {
+  --bg: #ffffff;
+  --surface: #f9f9f9;
+  --surface-raised: #ffffff;
+  --border: #e5e5e5;
+  --text: #0f0f0f;
+  --text-muted: #606060;
+  --accent: #ff0000;
+  --accent-hover: #cc0000;
+  --toggle-track: #e5e5e5;
+  --toggle-border: #d3d3d3;
+  --toggle-tick: #909090;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Dark — YouTube's own dark mode surfaces */
+[data-theme='dark'] {
+  --bg: #0f0f0f;
+  --surface: #212121;
+  --surface-raised: #272727;
+  --border: #3f3f3f;
+  --text: #f1f1f1;
+  --text-muted: #aaaaaa;
+  --accent: #ff0000;
+  --accent-hover: #ff4d4d;
+  --toggle-track: #3f3f3f;
+  --toggle-border: #4d4d4d;
+  --toggle-tick: #6b6b6b;
 }
 
+* {
+  box-sizing: border-box;
+}
+
+html,
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  padding: 0;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  transition: background 180ms ease, color 180ms ease;
+}
+
+a {
+  color: inherit;
 }
