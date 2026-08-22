@@ -22,7 +22,7 @@ type ChatMsg = {
   text: string
 }
 
-const RESOURCE = { id: 'premium-data', label: 'Premium Market Data', price: 0.1 }
+const RESOURCE = { id: 'place-order', label: 'Trading Session Authorization', price: 0.1 }
 const STARTING_BALANCE = 1.0
 
 const NAV: { key: View; label: string; icon: string }[] = [
@@ -116,29 +116,29 @@ export default function AgentDashboard() {
 
     if (status === 'active' && quota > 0) {
       await wait(500)
-      pushChat('agent', `Using existing capability — fetching ${RESOURCE.label.toLowerCase()}…`)
-      pushLog(`GET /api/${RESOURCE.id} → 200 OK (quota ${quota - 1} remaining)`, 'ok')
+      pushChat('agent', `Using existing trading capability — placing order…`)
+      pushLog(`POST /api/${RESOURCE.id} → 200 OK (quota ${quota - 1} remaining)`, 'ok')
       setQuota((q) => Math.max(0, q - 1))
       await wait(500)
-      pushChat('agent', `Here's the latest data: ALGO price $0.214, 24h change +4.8%, volume 2.4M.`)
+      pushChat('agent', `Order placed: BUY 10 ALGO @ market. Confirmation #ORD-${randHex(4)}.`)
       setBusy(false)
       return
     }
 
     if (status === 'revoked') {
       await wait(400)
-      pushChat('agent', `Requesting ${RESOURCE.id}…`)
+      pushChat('agent', `Attempting to place order via ${RESOURCE.id}…`)
       await wait(500)
       pushChat('agent', `Server: 403 FORBIDDEN — reason: CAPABILITY_REVOKED`)
-      pushLog(`GET /api/${RESOURCE.id} → 403 Forbidden (CAPABILITY_REVOKED)`, 'err')
+      pushLog(`POST /api/${RESOURCE.id} → 403 Forbidden (CAPABILITY_REVOKED)`, 'err')
       setBusy(false)
       return
     }
 
     await wait(500)
-    pushChat('agent', `Looking that up — this needs the paid resource "${RESOURCE.label}".`)
+    pushChat('agent', `Placing this trade requires "${RESOURCE.label}" — requesting authorization.`)
     setStatus('requesting')
-    pushLog(`GET /api/${RESOURCE.id} → requesting…`, 'muted')
+    pushLog(`POST /api/${RESOURCE.id} → requesting…`, 'muted')
     await wait(600)
 
     setStatus('payment_required')
@@ -161,12 +161,12 @@ export default function AgentDashboard() {
     setBalance((b) => Math.max(0, +(b - RESOURCE.price).toFixed(2)))
     setStatus('active')
     setRetryResult('idle')
-    pushLog(`Payment settled — capability ${cred} issued (READ, quota 5, expires 30m)`, 'ok')
-    pushChat('agent', `Paid and received a capability (5 requests, expires in 30m). Fetching your data…`)
+    pushLog(`Payment settled — capability ${cred} issued (WRITE, quota 5, expires 30m)`, 'ok')
+    pushChat('agent', `Paid and received a trading capability (5 orders, expires in 30m). Placing your order…`)
     await wait(500)
-    pushChat('agent', `Here's the latest data: ALGO price $0.214, 24h change +4.8%, volume 2.4M.`)
+    pushChat('agent', `Order placed: BUY 10 ALGO @ market. Confirmation #ORD-${randHex(4)}.`)
     setQuota((q) => Math.max(0, q - 1))
-    pushLog(`GET /api/${RESOURCE.id} → 200 OK (quota 4 remaining)`, 'ok')
+    pushLog(`POST /api/${RESOURCE.id} → 200 OK (quota 4 remaining)`, 'ok')
     setBusy(false)
   }
 
@@ -176,9 +176,9 @@ export default function AgentDashboard() {
     setRetryResult('pending')
     await wait(900)
     setRetryResult('forbidden')
-    pushChat('agent', `Requesting ${RESOURCE.id}…`)
+    pushChat('agent', `Attempting to place order via ${RESOURCE.id}…`)
     pushChat('agent', `Server: 403 FORBIDDEN — reason: CAPABILITY_REVOKED`)
-    pushLog(`GET /api/${RESOURCE.id} → 403 Forbidden (CAPABILITY_REVOKED)`, 'err')
+    pushLog(`POST /api/${RESOURCE.id} → 403 Forbidden (CAPABILITY_REVOKED)`, 'err')
   }
 
   function reissue() {
@@ -251,7 +251,7 @@ export default function AgentDashboard() {
               <div className="agent-card__head">
                 <span className="agent-card__icon">◎</span>
                 <div>
-                  <h2>Research Agent</h2>
+                  <h2>Trading Agent</h2>
                   <div className={`badge badge--${statusMeta[status].tone}`}>
                     Status: {statusMeta[status].label}
                   </div>
@@ -260,7 +260,7 @@ export default function AgentDashboard() {
 
               <div className="chat">
                 {chat.length === 0 ? (
-                  <p className="chat__empty">Ask your agent to fetch something paid — try “Get the premium market data for ALGO”.</p>
+                  <p className="chat__empty">Ask your agent to trade — try “Buy 10 ALGO” or “Place a market order”.</p>
                 ) : (
                   <div className="chat__log">
                     {chat.map((m) => (
@@ -289,7 +289,7 @@ export default function AgentDashboard() {
             <section className="card">
               <h2 className="card__title">Active Capabilities</h2>
               {!capExists ? (
-                <p className="chat__empty">No capabilities yet — ask your agent for premium data to get one.</p>
+                <p className="chat__empty">No capabilities yet — ask your agent to place a trade to get one.</p>
               ) : (
                 <div className="cap-card">
                   <div className="cap-card__head">
@@ -298,8 +298,8 @@ export default function AgentDashboard() {
                     <span className={`badge badge--${statusMeta[status].tone}`}>{statusMeta[status].label}</span>
                   </div>
                   <ul className="cap-card__meta">
-                    <li>READ only</li>
-                    <li>{status === 'active' ? `${quota} requests remaining` : `${quota} / 5 requests`}</li>
+                    <li>WRITE (place order)</li>
+                    <li>{status === 'active' ? `${quota} orders remaining` : `${quota} / 5 orders`}</li>
                     <li>
                       {status === 'active'
                         ? `Expires in ${mins}:${secs.toString().padStart(2, '0')}`
@@ -340,7 +340,7 @@ export default function AgentDashboard() {
               <>
                 <dl className="cap-list">
                   <div className="cap-row"><dt>Resource</dt><dd>{RESOURCE.id}</dd></div>
-                  <div className="cap-row"><dt>Action</dt><dd>READ</dd></div>
+                  <div className="cap-row"><dt>Action</dt><dd>WRITE</dd></div>
                   <div className="cap-row"><dt>Credential</dt><dd>{credentialId}</dd></div>
                   <div className="cap-row"><dt>Quota</dt><dd>{quota} / 5</dd></div>
                   <div className="cap-row">
@@ -380,22 +380,6 @@ export default function AgentDashboard() {
         {view === 'resources' && (
           <section className="card">
             <h2 className="card__title">Resources</h2>
-            <div className="cap-card">
-              <div className="cap-card__head">
-                <span className="cap-card__icon">⚿</span>
-                <span>{RESOURCE.label}</span>
-              </div>
-              <ul className="cap-card__meta">
-                <li>GET /api/{RESOURCE.id}</li>
-                <li>{RESOURCE.price} ALGO per capability</li>
-                <li>READ only</li>
-              </ul>
-            </div>
-          </section>
-        )}
-        {view === 'resources' && (
-          <section className="card">
-            <h2 className="card__title">Resources</h2>
             <div className="provider">
               <div className="provider__banner">
                 <span className="provider__banner-dot" />
@@ -415,18 +399,18 @@ export default function AgentDashboard() {
               </div>
 
               <div className="provider__actions">
-                <span className="pill pill--on">✓ READ</span>
-                <span className="pill pill--off">WRITE</span>
+                <span className="pill pill--off">READ</span>
+                <span className="pill pill--on">✓ WRITE</span>
               </div>
 
               <div className="provider__stats">
                 <div className="provider__stat">
                   <span className="provider__stat-num">5</span>
-                  <span className="provider__stat-label">requests per capability</span>
+                  <span className="provider__stat-label">orders per capability</span>
                 </div>
                 <div className="provider__stat">
                   <span className="provider__stat-num">30m</span>
-                  <span className="provider__stat-label">access duration</span>
+                  <span className="provider__stat-label">session duration</span>
                 </div>
                 <div className="provider__stat">
                   <span className="provider__stat-num">1</span>
@@ -435,7 +419,7 @@ export default function AgentDashboard() {
               </div>
             </div>
           </section>
-        )}  
+        )}
 
         {view === 'activity' && (
           <section className="card">
@@ -479,7 +463,7 @@ export default function AgentDashboard() {
                 </div>
                 <div className="modal__field">
                   <span className="modal__label">Action</span>
-                  <span className="modal__value">READ</span>
+                  <span className="modal__value">WRITE</span>
                 </div>
                 <div className="modal__field">
                   <span className="modal__label">Payment</span>
@@ -538,7 +522,7 @@ export default function AgentDashboard() {
                 </div>
                 <div className="modal__field">
                   <span className="modal__label">Action</span>
-                  <span className="modal__value">READ</span>
+                  <span className="modal__value">WRITE</span>
                 </div>
                 <div className="modal__field">
                   <span className="modal__label">Requests</span>
@@ -887,7 +871,7 @@ export default function AgentDashboard() {
           align-items: center;
           gap: 14px;
         }
-        
+
         .provider {
           border: 1px solid var(--border);
           border-radius: 14px;
@@ -1003,40 +987,6 @@ export default function AgentDashboard() {
           font-size: 0.74rem;
           color: var(--text-muted);
           line-height: 1.4;
-        }
-        .provider-box__head {
-          font-size: 0.78rem;
-          letter-spacing: 0.1em;
-          color: var(--text-muted);
-          padding-bottom: 12px;
-          margin-bottom: 14px;
-          border-bottom: 1px solid var(--border);
-        }
-        .provider-box__field {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-          padding: 10px 0;
-          border-bottom: 1px solid var(--border);
-        }
-        .provider-box__field:last-child {
-          border-bottom: none;
-        }
-        .provider-box__label {
-          font-size: 0.78rem;
-          color: var(--text-muted);
-        }
-        .provider-box__value {
-          font-size: 0.9rem;
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-        .provider-box__check {
-          color: var(--text);
-        }
-        .provider-box__check--off {
-          color: var(--text-muted);
         }
         .link {
           font-size: 0.82rem;
