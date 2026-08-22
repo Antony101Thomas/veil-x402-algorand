@@ -16,12 +16,51 @@ export default function LoginPage() {
   )
   const [role, setRole] = useState<Role>('agent')
   const [handle, setHandle] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [info, setInfo] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const session = { handle: handle || (role === 'agent' ? 'agent-01' : 'provider-demo'), role }
-    localStorage.setItem(SESSION_KEY, JSON.stringify(session))
-    router.push(role === 'admin' ? '/admin' : '/agent')
+    setError(null)
+    setInfo(null)
+    const finalHandle = handle || (role === 'agent' ? 'agent-01' : 'provider-demo')
+
+    setLoading(true)
+    try {
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ handle: finalHandle, role, mode }),
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        // e.g. signin attempted for a handle that doesn't exist
+        setError(data.error || 'Something went wrong')
+        setLoading(false)
+        return
+      }
+
+      if (data.note === 'handle_already_existed_logged_in') {
+        setInfo(`"${finalHandle}" already exists — signing you in instead.`)
+      }
+
+      const session = { handle: data.user.handle, role: data.user.role }
+      localStorage.setItem(SESSION_KEY, JSON.stringify(session))
+
+      // Small delay so the info message is visible before navigating away,
+      // only when we actually have something to show.
+      const go = () => router.push(data.user.role === 'admin' ? '/admin' : '/agent')
+      if (data.note === 'handle_already_existed_logged_in') {
+        setTimeout(go, 900)
+      } else {
+        go()
+      }
+    } catch {
+      setError('Could not reach the server. Try again.')
+      setLoading(false)
+    }
   }
 
   return (
@@ -37,7 +76,11 @@ export default function LoginPage() {
               role="tab"
               aria-selected={mode === m}
               className={`modebtn ${mode === m ? 'modebtn--active' : ''}`}
-              onClick={() => setMode(m)}
+              onClick={() => {
+                setMode(m)
+                setError(null)
+                setInfo(null)
+              }}
             >
               {m === 'signin' ? 'Sign In' : 'Sign Up'}
             </button>
@@ -75,8 +118,11 @@ export default function LoginPage() {
           />
         </label>
 
-        <button type="submit" className="submit">
-          {mode === 'signin' ? 'Continue' : 'Create & Continue'}
+        {error && <p className="card__error">{error}</p>}
+        {info && <p className="card__info">{info}</p>}
+
+        <button type="submit" className="submit" disabled={loading}>
+          {loading ? 'Please wait…' : mode === 'signin' ? 'Continue' : 'Create & Continue'}
         </button>
 
         <p className="card__footnote">TestNet demo — no real credentials required.</p>
@@ -188,6 +234,18 @@ export default function LoginPage() {
           outline: 2px solid var(--accent);
           outline-offset: 1px;
         }
+        .card__error {
+          margin: -8px 0 16px;
+          font-size: 12px;
+          color: var(--accent);
+          text-align: center;
+        }
+        .card__info {
+          margin: -8px 0 16px;
+          font-size: 12px;
+          color: var(--text-muted);
+          text-align: center;
+        }
         .submit {
           width: 100%;
           padding: 11px 0;
@@ -203,6 +261,10 @@ export default function LoginPage() {
         }
         .submit:hover {
           background: var(--accent-hover);
+        }
+        .submit:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
         .card__footnote {
           margin: 16px 0 0;

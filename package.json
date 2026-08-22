@@ -11,12 +11,14 @@
   },
   "dependencies": {
     "@algorandfoundation/algokit-utils": "^9.2.0",
+    "@supabase/supabase-js": "^2.112.3",
     "@x402/avm": "^2.23.0",
     "@x402/core": "^2.23.0",
     "@x402/fetch": "^2.23.0",
     "@x402/next": "^2.23.0",
     "algosdk": "^3.6.0",
     "next": "16.3.1",
+    "openai": "^7.5.0",
     "pg": "^8.23.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"
