@@ -140,6 +140,113 @@ function Reveal({
   );
 }
 
+/** Types a single string out character-by-character once `start` is true. */
+function useTypewriter(text: string, speed = 40, start = true) {
+  const [output, setOutput] = useState('');
+
+  useEffect(() => {
+    if (!start) return;
+    setOutput('');
+    let i = 0;
+    const id = setInterval(() => {
+      i += 1;
+      setOutput(text.slice(0, i));
+      if (i >= text.length) clearInterval(id);
+    }, speed);
+    return () => clearInterval(id);
+  }, [text, speed, start]);
+
+  return output;
+}
+
+/**
+ * Types out several lines in sequence — line 1 finishes, then line 2 starts,
+ * and so on — used for the terminal transcript's "generating" effect.
+ */
+function useTypewriterLines(lines: string[], speed = 16, start = true) {
+  const [output, setOutput] = useState<string[]>(() => lines.map(() => ''));
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    if (!start) return;
+    setOutput(lines.map(() => ''));
+    setDone(false);
+    let lineIndex = 0;
+    let charIndex = 0;
+    const id = setInterval(() => {
+      setOutput((prev) => {
+        if (lineIndex >= lines.length) {
+          clearInterval(id);
+          setDone(true);
+          return prev;
+        }
+        const next = [...prev];
+        charIndex += 1;
+        next[lineIndex] = lines[lineIndex].slice(0, charIndex);
+        if (charIndex >= lines[lineIndex].length) {
+          lineIndex += 1;
+          charIndex = 0;
+        }
+        return next;
+      });
+    }, speed);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [start, speed]);
+
+  return { lines: output, done };
+}
+
+const HERO_HEADLINE_PREFIX = 'Payment becomes ';
+const HERO_HEADLINE_ACCENT = 'authorization.';
+
+const TRANSCRIPT_LINE_DEFS = [
+  { text: 'GET /api/premium-data', className: 'line line--muted' },
+  { text: '402 Payment Required', className: 'line line--warn' },
+  { text: 'x402-pay: algorand · amount=0.05 ALGO', className: 'line line--muted' },
+  { text: 'retry with payment proof…', className: 'line line--muted' },
+  { text: '', className: 'line' },
+  { text: '200 OK', className: 'line line--ok' },
+  { text: '{ asset: "ALGO", price: 0.214, change24h: "+4.8%" }', className: 'line line--muted' },
+];
+
+function TranscriptPanel() {
+  const { ref, visible } = useRevealOnScroll();
+  const { lines: typed, done } = useTypewriterLines(
+    TRANSCRIPT_LINE_DEFS.map((l) => l.text),
+    16,
+    visible
+  );
+
+  return (
+    <div
+      ref={ref as React.RefObject<HTMLDivElement>}
+      className={`transcript-wrap reveal ${visible ? 'reveal--visible' : ''}`}
+      style={{ transitionDelay: '120ms' }}
+    >
+      <div className="transcript" role="group" aria-label="Veil request lifecycle">
+        <div className="transcript__bar">
+          <span className="dot dot--red" />
+          <span className="dot dot--amber" />
+          <span className="dot dot--green" />
+          <span className="transcript__title">agent → /api/premium-data</span>
+        </div>
+        <pre className="transcript__body">
+          <code>
+            {TRANSCRIPT_LINE_DEFS.map((def, i) => (
+              <span key={i}>
+                <span className={def.className}>{typed[i]}</span>
+                {i < TRANSCRIPT_LINE_DEFS.length - 1 ? '\n' : null}
+              </span>
+            ))}
+            {!done && <span className="caret" aria-hidden="true" />}
+          </code>
+        </pre>
+      </div>
+    </div>
+  );
+}
+
 export default function LandingPage() {
   const router = useRouter();
 
@@ -157,6 +264,12 @@ export default function LandingPage() {
     }
   }, [router]);
 
+  // Headline types itself out once, on load.
+  const typedHeadline = useTypewriter(HERO_HEADLINE_PREFIX + HERO_HEADLINE_ACCENT, 42, true);
+  const typedPrefix = typedHeadline.slice(0, HERO_HEADLINE_PREFIX.length);
+  const typedAccent = typedHeadline.slice(HERO_HEADLINE_PREFIX.length);
+  const headlineDone = typedHeadline.length >= HERO_HEADLINE_PREFIX.length + HERO_HEADLINE_ACCENT.length;
+
   return (
     <main className="veil-landing">
       {/* ---------- HERO ---------- */}
@@ -164,7 +277,9 @@ export default function LandingPage() {
         <div className="hero__inner">
           <p className="eyebrow">AGENTIC ACCESS · x402 + ALGORAND</p>
           <h1 className="hero__headline">
-            Payment becomes <span className="accent-text">authorization.</span>
+            {typedPrefix}
+            <span className="accent-text">{typedAccent}</span>
+            {!headlineDone && <span className="caret" aria-hidden="true" />}
           </h1>
           <p className="hero__sub">
             Veil is an economic authorization layer for autonomous AI agents.
@@ -182,38 +297,8 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* Signature element: a live HTTP transcript that flips on revoke */}
-        <Reveal className="transcript-wrap" delay={120}>
-          <div className="transcript" role="group" aria-label="Veil request lifecycle">
-            <div className="transcript__bar">
-              <span className="dot dot--red" />
-              <span className="dot dot--amber" />
-              <span className="dot dot--green" />
-              <span className="transcript__title">agent → /api/premium-data</span>
-            </div>
-            <pre className="transcript__body">
-              <code>
-                <span className="line line--muted">GET /api/premium-data</span>
-                {'\n'}
-                <span className="line line--warn">402 Payment Required</span>
-                {'\n'}
-                <span className="line line--muted">
-                  x402-pay: algorand · amount=0.05 ALGO
-                </span>
-                {'\n'}
-                <span className="line line--muted">retry with payment proof…</span>
-                {'\n\n'}
-                <>
-                  <span className="line line--ok">200 OK</span>
-                  {'\n'}
-                  <span className="line line--muted">
-                    {'{ asset: "ALGO", price: 0.214, change24h: "+4.8%" }'}
-                  </span>
-                </>
-              </code>
-            </pre>
-          </div>
-        </Reveal>
+        {/* Signature element: a live HTTP transcript that "generates" on scroll-into-view */}
+        <TranscriptPanel />
       </section>
 
       {/* ---------- STATS ---------- */}
@@ -429,19 +514,39 @@ export default function LandingPage() {
           transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
         }
         .btn--primary {
-          background: var(--accent);
+          background: var(--accent, #ff0000);
           color: #fff;
         }
         .btn--primary:hover {
+          background: var(--accent-hover, #cc0000);
           transform: translateY(-1px);
         }
         .btn--ghost {
           background: transparent;
-          color: var(--text);
-          border: 1px solid var(--border);
+          color: var(--text, #0f0f0f);
+          border: 1px solid var(--border, #e5e5e5);
         }
         .btn--ghost:hover {
-          border-color: var(--accent);
+          border-color: var(--accent, #ff0000);
+        }
+        .caret {
+          display: inline-block;
+          width: 2px;
+          height: 0.95em;
+          margin-left: 3px;
+          vertical-align: -0.12em;
+          background: currentColor;
+          animation: caret-blink 1s step-end infinite;
+        }
+        @keyframes caret-blink {
+          50% {
+            opacity: 0;
+          }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .caret {
+            animation: none;
+          }
         }
 
         /* ---------- Transcript (signature element) ---------- */
