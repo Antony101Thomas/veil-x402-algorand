@@ -6,23 +6,58 @@ import { clearSession, dashboardPath, readSession, type Session } from '@/lib/se
 
 type CapStatus = 'active' | 'revoked' | 'expired'
 
+// Shape returned by GET /api/capabilities (joined with agents)
+type ApiCapability = {
+  credential_id: string
+  resource_id: string
+  action: 'READ' | 'WRITE'
+  quota: number
+  quota_used: number
+  expiry_at: string | null
+  revoked: boolean
+  revoked_at: string | null
+  created_at: string
+  agents: { agent_id: string; name: string; status: string } | null
+}
+
 type Capability = {
-  id: string
   credentialId: string
   agentHandle: string
   resource: string
   action: 'READ' | 'WRITE'
   quotaUsed: number
   quotaTotal: number
-  expiresIn: number
+  expiresAt: number | null // epoch ms, null if no expiry
   status: CapStatus
   payment: number
+}
+
+function toCapability(row: ApiCapability): Capability {
+  const expiresAt = row.expiry_at ? new Date(row.expiry_at).getTime() : null
+  const isExpired = expiresAt !== null && expiresAt <= Date.now()
+  const status: CapStatus = row.revoked ? 'revoked' : isExpired ? 'expired' : 'active'
+
+  return {
+    credentialId: row.credential_id,
+    agentHandle: row.agents?.name ?? 'unknown',
+    resource: row.resource_id,
+    action: row.action,
+    quotaUsed: row.quota_used,
+    quotaTotal: row.quota,
+    expiresAt,
+    status,
+    payment: 0, // Placeholder: Currently payment is not stored in local DB
+  }
 }
 
 export default function AdminDashboard() {
   const router = useRouter()
   const [session, setSession] = useState<Session | null>(null)
-  const [caps] = useState<Capability[]>([])
+  const [caps, setCaps] = useState<Capability[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
+  const [, forceTick] = useState(0) // re-render every second to update countdowns
 
   useEffect(() => {
     const parsed = readSession()
@@ -36,6 +71,57 @@ export default function AdminDashboard() {
     }
     setSession(parsed)
   }, [router])
+
+  async function loadCapabilities() {
+    try {
+      const res = await fetch('/api/capabilities')
+      const json = await res.json()
+      if (!res.ok) {
+        setLoadError(json.error ?? 'Failed to load capabilities')
+        return
+      }
+      setCaps((json.capabilities as ApiCapability[]).map(toCapability))
+      setLoadError(null)
+    } catch (err) {
+      setLoadError('Network error loading capabilities')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!session) return
+    loadCapabilities()
+    const poll = setInterval(loadCapabilities, 15000) // refresh from DB every 15s
+    return () => clearInterval(poll)
+  }, [session])
+
+  // Tick every second just to re-render countdowns; doesn't refetch.
+  useEffect(() => {
+    const t = setInterval(() => forceTick((n) => n + 1), 1000)
+    return () => clearInterval(t)
+  }, [])
+
+  async function revoke(credentialId: string) {
+    const target = caps.find((c) => c.credentialId === credentialId)
+    try {
+      const res = await fetch(`/api/capabilities/${credentialId}/revoke`, { method: 'POST' })
+      const json = await res.json()
+      if (!res.ok) {
+        setToast(`Failed to revoke: ${json.error ?? 'unknown error'}`)
+        setTimeout(() => setToast(null), 3500)
+        return
+      }
+      setCaps((prev) =>
+        prev.map((c) => (c.credentialId === credentialId ? { ...c, status: 'revoked' } : c))
+      )
+      setToast(`Revoked ${credentialId} — ${target?.agentHandle}'s next request will return 403.`)
+      setTimeout(() => setToast(null), 3500)
+    } catch {
+      setToast('Network error revoking capability')
+      setTimeout(() => setToast(null), 3500)
+    }
+  }
 
   function handleLogout() {
     clearSession()
@@ -99,59 +185,76 @@ export default function AdminDashboard() {
 
         <section className="card">
           <h2 className="card__title">Active Capabilities</h2>
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Credential</th>
-                  <th>Agent</th>
-                  <th>Resource</th>
-                  <th>Action</th>
-                  <th>Quota</th>
-                  <th>Expires</th>
-                  <th>Status</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {caps.length === 0 ? (
+
+          {loading && <p className="muted-note">Loading capabilities…</p>}
+          {loadError && <p className="error-note">{loadError}</p>}
+
+          {!loading && !loadError && (
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
                   <tr>
-                    <td colSpan={8} className="empty-cell">
-                      No capabilities on chain yet. This list stays empty until payment
-                      atomically mints a grant — revoke will call the contract, not local state.
-                    </td>
+                    <th>Credential</th>
+                    <th>Agent</th>
+                    <th>Resource</th>
+                    <th>Action</th>
+                    <th>Quota</th>
+                    <th>Expires</th>
+                    <th>Status</th>
+                    <th></th>
                   </tr>
-                ) : (
-                  caps.map((c) => {
-                    const mins = Math.floor(c.expiresIn / 60)
-                    const secs = c.expiresIn % 60
-                    return (
-                      <tr key={c.id}>
-                        <td className="mono">{c.credentialId}</td>
-                        <td>{c.agentHandle}</td>
-                        <td className="mono">{c.resource}</td>
-                        <td>{c.action}</td>
-                        <td>
-                          {c.quotaUsed} / {c.quotaTotal}
-                        </td>
-                        <td className="mono">
-                          {c.status === 'active' ? `${mins}:${secs.toString().padStart(2, '0')}` : '—'}
-                        </td>
-                        <td>
-                          <span className={`badge badge--${statusMeta[c.status].tone}`}>
-                            {statusMeta[c.status].label}
-                          </span>
-                        </td>
-                        <td />
-                      </tr>
-                    )
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {caps.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="empty-cell">
+                        No capabilities on chain yet. This list stays empty until payment
+                        atomically mints a grant — revoke will call the contract, not local state.
+                      </td>
+                    </tr>
+                  ) : (
+                    caps.map((c) => {
+                      let expiryLabel = '—'
+                      if (c.status === 'active' && c.expiresAt !== null) {
+                        const remainingSec = Math.max(0, Math.floor((c.expiresAt - Date.now()) / 1000))
+                        const mins = Math.floor(remainingSec / 60)
+                        const secs = remainingSec % 60
+                        expiryLabel = `${mins}:${secs.toString().padStart(2, '0')}`
+                      }
+                      return (
+                        <tr key={c.credentialId}>
+                          <td className="mono">{c.credentialId}</td>
+                          <td>{c.agentHandle}</td>
+                          <td className="mono">{c.resource}</td>
+                          <td>{c.action}</td>
+                          <td>
+                            {c.quotaUsed} / {c.quotaTotal}
+                          </td>
+                          <td className="mono">{expiryLabel}</td>
+                          <td>
+                            <span className={`badge badge--${statusMeta[c.status].tone}`}>
+                              {statusMeta[c.status].label}
+                            </span>
+                          </td>
+                          <td>
+                            {c.status === 'active' && (
+                              <button className="btn btn--revoke-sm" onClick={() => revoke(c.credentialId)}>
+                                Revoke
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
       </main>
+
+      {toast && <div className="toast">{toast}</div>}
 
       <style jsx>{`
         .shell {
@@ -283,6 +386,15 @@ export default function AdminDashboard() {
           margin: 0 0 16px;
           font-size: 1rem;
           font-weight: 600;
+        }
+
+        .muted-note {
+          color: var(--text-muted);
+          font-size: 0.88rem;
+        }
+        .error-note {
+          color: var(--accent);
+          font-size: 0.88rem;
         }
 
         .table-wrap {
