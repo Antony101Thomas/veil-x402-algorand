@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
       returns: { type: 'void' }
     });
 
-    const expiryRound = BigInt(suggestedParams.firstValid + 10000);
+    const expiryRound = BigInt(suggestedParams.firstValid) + BigInt(10000);
     const quota = BigInt(5); // Default quota for MVP
 
     const txn3 = algosdk.makeApplicationNoOpTxnFromObject({

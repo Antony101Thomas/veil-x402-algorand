@@ -53,7 +53,7 @@ async function handler(request: NextRequest) {
       disposableKeyBase64 = Buffer.from(disposableAccount.sk).toString('base64');
 
       const suggestedParams = await algodClient.getTransactionParams().do();
-      const expiryRound = BigInt(suggestedParams.firstValid + 10000);
+      const expiryRound = BigInt(suggestedParams.firstValid) + BigInt(10000);
       const quota = BigInt(5);
 
       // Txn 1: Fund disposable account
