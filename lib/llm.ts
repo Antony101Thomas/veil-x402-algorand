@@ -4,20 +4,29 @@ import OpenAI from 'openai';
  * LLM integration for the Veil agent.
  *
  * Uses groq/compound via Groq's OpenAI-compatible API.
- * groq/compound has a tight input-token budget, so ALL prompts are kept short.
+ * groq/compound has a tight input-token budget so ALL prompts are compact.
  *
- * Intent routing uses a simple classify-then-answer pattern:
- *   1. Classify the user's last message as FETCH or ANSWER (tiny prompt).
- *   2a. ANSWER → generate a Veil-aware response (concise system prompt).
- *   2b. FETCH  → caller triggers x402/Algorand payment, then summarize result.
- *
- * `chatWithIntent`  — primary entry-point used by /api/chat
- * `summarizeData`   — post-fetch summarization
- * `callModel`       — backward-compat shim for agent/orchestrator.ts
+ * Known quirks of groq/compound that this file works around:
+ *  - It leaks chain-of-thought ("Reasoning and extraction", "Two-sentence summary"
+ *    headers) into completions. stripReasoning() removes this before returning.
+ *  - Short contextual replies ("yes", "ok") 413 when sent with a long system
+ *    prompt. The classifier skips the system prompt entirely.
+ *  - Context-less one-word replies ("yes") need prior conversation context to
+ *    classify correctly, so we pass the last assistant + user turn to the
+ *    classifier.
  */
 
-const XAI_BASE_URL = 'https://api.x.ai/v1';
-const DEFAULT_MODEL = 'grok-3-mini'; // set XAI_MODEL env to override
+function getBaseUrl() {
+  const key = process.env.XAI_API_KEY || '';
+  if (key.startsWith('gsk_')) return 'https://api.groq.com/openai/v1';
+  return 'https://api.x.ai/v1';
+}
+
+function getDefaultModel() {
+  const key = process.env.XAI_API_KEY || '';
+  if (key.startsWith('gsk_')) return 'groq/compound';
+  return 'grok-3-mini';
+}
 
 let client: OpenAI | null = null;
 
@@ -28,32 +37,83 @@ function getClient(): OpenAI {
   if (!client) {
     client = new OpenAI({
       apiKey: process.env.XAI_API_KEY,
-      baseURL: XAI_BASE_URL,
+      baseURL: getBaseUrl(),
     });
   }
   return client;
 }
 
 // ---------------------------------------------------------------------------
-// Prompts — kept deliberately short for groq/compound's input-token budget
+// Reasoning stripper
+// groq/compound often outputs internal reasoning before the actual answer.
+// This strips everything up to (and including) the last summary/answer header.
 // ---------------------------------------------------------------------------
 
-/** One-line classifier — returns "FETCH" or "ANSWER". */
-const CLASSIFIER_PROMPT =
-  'You classify user messages. Reply with only "FETCH" if the user wants live market/price data or to fetch a resource. ' +
-  'Reply with only "ANSWER" for everything else. One word only.';
+function stripReasoning(raw: string): string {
+  // Markers that precede the real answer
+  const markerPatterns = [
+    /\*\*Two[\u2011-]sentence summary\*\*\s*/i,
+    /\*\*Summary\*\*\s*/i,
+    /\*\*Final answer\*\*\s*/i,
+    /\*\*Answer\*\*\s*/i,
+    /\*\*Plain[\s\u2011-]language summary\*\*\s*/i,
+  ];
 
-/** Veil-aware system prompt for conversational answers. */
-const VEIL_SYSTEM_PROMPT =
-  'You are the AI agent for Veil, an economic capability layer. ' +
-  'Veil converts x402 payments on Algorand TestNet into scoped, expiring, revocable on-chain capabilities stored in Algorand box storage. ' +
-  'Instead of permanent API keys, agents get time-limited credentials (e.g. 5 requests, 30-min expiry) that can be instantly revoked. ' +
-  'The dashboard shows Active Capabilities, Payments, Resources, and Activity. ' +
-  'Answer questions about Veil, x402, Algorand, and capabilities clearly. Be concise. Do not mention you are an AI.';
+  let result = raw;
+  for (const pattern of markerPatterns) {
+    const match = result.match(pattern);
+    if (match && match.index !== undefined) {
+      const afterMarker = result.slice(match.index + match[0].length).trim();
+      // Only take the slice if it's non-empty and shorter than the full text
+      if (afterMarker.length > 0 && afterMarker.length < result.length) {
+        result = afterMarker;
+      }
+    }
+  }
 
-/** Short prompt for summarizing fetched resource data. */
-const SUMMARY_PROMPT =
-  'You are the Veil AI agent. Summarize the following market data for the user in 2 sentences. Be plain and direct.';
+  // Also strip any remaining markdown bold headers at the start of lines
+  // e.g. "**Reasoning and extraction**\n..."
+  result = result.replace(/^\*\*[^*]+\*\*\s*\n+/gm, '').trim();
+
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Prompts — kept short for groq/compound's input-token budget
+// ---------------------------------------------------------------------------
+
+/** Classifier: returns "FETCH" or "ANSWER". No system prompt (avoids 413). */
+function buildClassifyPrompt(context: string, lastMsg: string): string {
+  return (
+    'Classify this message as FETCH or ANSWER. ' +
+    'FETCH = user wants live market data, prices, or to retrieve a resource. ' +
+    'ANSWER = everything else (questions, confirmations, greetings, follow-ups).\n' +
+    (context ? `Context: ${context}\n` : '') +
+    `Message: "${lastMsg}"\n` +
+    'Reply with ONE word only: FETCH or ANSWER.'
+  );
+}
+
+/** Veil-aware conversational answer prompt. */
+function buildAnswerPrompt(lastMsg: string): string {
+  return (
+    'You are the AI agent for Veil, an economic capability layer. ' +
+    'Veil converts x402 payments on Algorand TestNet into scoped, expiring, revocable on-chain capabilities. ' +
+    'Instead of permanent API keys, agents receive time-limited credentials (5 requests, 30-min expiry) that can be instantly revoked. ' +
+    'Dashboard sections: Active Capabilities, Payments, Resources, Activity. ' +
+    'Give a concise, plain-language answer. Do not show reasoning steps or headers.\n\n' +
+    `User: ${lastMsg}\nAgent:`
+  );
+}
+
+/** Data summary prompt — no headers, just the answer. */
+function buildSummaryPrompt(dataStr: string): string {
+  return (
+    'Summarize this market data in exactly 2 plain sentences. ' +
+    'Do NOT include any headers, bullet points, or reasoning. Just write the 2 sentences directly.\n\n' +
+    `Data: ${dataStr}\nSummary:`
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -73,51 +133,58 @@ export type ChatIntentResult =
 // ---------------------------------------------------------------------------
 
 /**
- * Step 1: tiny classify call → FETCH or ANSWER.
- * Step 2a: ANSWER → full conversational reply with Veil system prompt.
- * Step 2b: FETCH  → return { type: 'fetch' } — caller handles payment.
+ * Step 1: classify the last user message (with 1-turn context) → FETCH or ANSWER.
+ * Step 2a: ANSWER → generate a Veil-aware reply, strip any reasoning preamble.
+ * Step 2b: FETCH  → return { type: 'fetch' } — caller handles the x402 payment.
  */
 export async function chatWithIntent(
   messages: ChatMessage[],
 ): Promise<ChatIntentResult> {
   const groq = getClient();
-  const model = process.env.XAI_MODEL ?? DEFAULT_MODEL;
+  const model = process.env.XAI_MODEL ?? getDefaultModel();
 
   const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user')?.content ?? '';
 
-  // Step 1 — classify
+  // Build a short context string from the last assistant message (if any),
+  // so "yes" / "ok" / "go ahead" are resolved correctly.
+  const lastAssistantMsg = [...messages].reverse().find((m) => m.role === 'assistant')?.content ?? '';
+  const contextHint = lastAssistantMsg
+    ? lastAssistantMsg.slice(0, 120).replace(/\n/g, ' ')
+    : '';
+
+  // Step 1 — classify (no system prompt to avoid 413)
   const classify = await groq.chat.completions.create({
     model,
     messages: [
-      { role: 'user', content: `${CLASSIFIER_PROMPT}\n\nUser said: "${lastUserMsg}"` },
+      { role: 'user', content: buildClassifyPrompt(contextHint, lastUserMsg) },
     ],
     max_tokens: 5,
   });
 
-  const intent = classify.choices[0]?.message?.content?.trim().toUpperCase() ?? '';
+  const intentRaw = classify.choices[0]?.message?.content?.trim().toUpperCase() ?? '';
 
-  if (intent.startsWith('FETCH')) {
+  // groq/compound may ignore max_tokens and output reasoning first (e.g., "...therefore the answer is FETCH").
+  // We check which keyword appears last in the response.
+  const fetchIdx = intentRaw.lastIndexOf('FETCH');
+  const answerIdx = intentRaw.lastIndexOf('ANSWER');
+
+  if (fetchIdx > -1 && fetchIdx > answerIdx) {
     return { type: 'fetch', resourceId: 'premium-data' };
   }
 
-  // Step 2 — answer
-  // Only send the last 4 messages to stay within the input-token budget
-  const recentMessages = messages.slice(-4);
+  // Step 2 — generate answer
   const answer = await groq.chat.completions.create({
     model,
     messages: [
-      { role: 'user', content: `${VEIL_SYSTEM_PROMPT}\n\nUser: ${lastUserMsg}` },
+      { role: 'user', content: buildAnswerPrompt(lastUserMsg) },
     ],
-    max_tokens: 300,
+    max_tokens: 200,
   });
 
-  // suppress unused variable warning
-  void recentMessages;
+  const raw = answer.choices[0]?.message?.content?.trim() ?? '';
+  if (!raw) throw new Error('Model returned an empty response');
 
-  const text = answer.choices[0]?.message?.content?.trim() ?? '';
-  if (!text) throw new Error('Model returned an empty response');
-
-  return { type: 'text', reply: text };
+  return { type: 'text', reply: stripReasoning(raw) };
 }
 
 // ---------------------------------------------------------------------------
@@ -129,45 +196,45 @@ export async function summarizeData(
   _messages: ChatMessage[],
 ): Promise<string> {
   const groq = getClient();
-  const model = process.env.XAI_MODEL ?? DEFAULT_MODEL;
+  const model = process.env.XAI_MODEL ?? getDefaultModel();
 
   const dataStr = JSON.stringify(data);
   const response = await groq.chat.completions.create({
     model,
     messages: [
-      {
-        role: 'user',
-        content: `${SUMMARY_PROMPT}\n\nData: ${dataStr}`,
-      },
+      { role: 'user', content: buildSummaryPrompt(dataStr) },
     ],
-    max_tokens: 150,
+    max_tokens: 120,
   });
 
-  const text = response.choices[0]?.message?.content?.trim();
-  if (!text) throw new Error('Model returned an empty summary');
-  return text;
+  const raw = response.choices[0]?.message?.content?.trim();
+  if (!raw) throw new Error('Model returned an empty summary');
+  return stripReasoning(raw);
 }
 
 // ---------------------------------------------------------------------------
 // callModel — backward-compat shim for agent/orchestrator.ts
 // ---------------------------------------------------------------------------
 
-const LEGACY_PROMPT_PREFIX =
-  'You are a Veil AI agent. Summarize the following market data in 1-2 plain sentences:';
-
 export async function callModel(prompt: string): Promise<string> {
   const groq = getClient();
-  const model = process.env.XAI_MODEL ?? DEFAULT_MODEL;
+  const model = process.env.XAI_MODEL ?? getDefaultModel();
 
   const completion = await groq.chat.completions.create({
     model,
     messages: [
-      { role: 'user', content: `${LEGACY_PROMPT_PREFIX}\n\n${prompt}` },
+      {
+        role: 'user',
+        content:
+          'Summarize this market data in 1-2 plain sentences. No headers or reasoning.\n\n' +
+          prompt +
+          '\nSummary:',
+      },
     ],
-    max_tokens: 150,
+    max_tokens: 120,
   });
 
-  const text = completion.choices[0]?.message?.content?.trim();
-  if (!text) throw new Error('Model returned an empty response');
-  return text;
+  const raw = completion.choices[0]?.message?.content?.trim();
+  if (!raw) throw new Error('Model returned an empty response');
+  return stripReasoning(raw);
 }
