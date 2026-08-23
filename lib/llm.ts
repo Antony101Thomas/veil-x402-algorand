@@ -18,19 +18,21 @@ import OpenAI from 'openai';
 
 function getBaseUrl() {
   const key = process.env.XAI_API_KEY || '';
+  if (key.startsWith('sk-or-')) return 'https://openrouter.ai/api/v1';
   if (key.startsWith('gsk_')) return 'https://api.groq.com/openai/v1';
   return 'https://api.x.ai/v1';
 }
 
-function getDefaultModel() {
+function getModel() {
   const key = process.env.XAI_API_KEY || '';
-  if (key.startsWith('gsk_')) return 'groq/compound';
-  return 'grok-3-mini';
+  if (key.startsWith('sk-or-')) return process.env.XAI_MODEL || 'google/gemini-2.0-flash-lite-preview-02-05:free'; // OpenRouter free model
+  if (key.startsWith('gsk_')) return 'groq/compound'; // User's Groq model
+  return process.env.XAI_MODEL || 'grok-3-mini';
 }
 
 let client: OpenAI | null = null;
 
-function getClient(): OpenAI {
+export function getClient(): OpenAI {
   if (!process.env.XAI_API_KEY) {
     throw new Error('XAI_API_KEY not set — add it to .env.local');
   }
@@ -142,8 +144,7 @@ export async function chatWithIntent(
   messages: ChatMessage[],
 ): Promise<ChatIntentResult> {
   const groq = getClient();
-  const key = process.env.XAI_API_KEY || '';
-  const model = key.startsWith('gsk_') ? 'llama-3.3-70b-versatile' : (process.env.XAI_MODEL || 'grok-3-mini');
+  const model = getModel();
 
   const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user')?.content ?? '';
 
@@ -198,8 +199,7 @@ export async function summarizeData(
   _messages: ChatMessage[],
 ): Promise<string> {
   const groq = getClient();
-  const key = process.env.XAI_API_KEY || '';
-  const model = key.startsWith('gsk_') ? 'llama-3.3-70b-versatile' : (process.env.XAI_MODEL || 'grok-3-mini');
+  const model = getModel();
 
   const dataStr = JSON.stringify(data);
   const response = await groq.chat.completions.create({
@@ -221,8 +221,7 @@ export async function summarizeData(
 
 export async function callModel(prompt: string): Promise<string> {
   const groq = getClient();
-  const key = process.env.XAI_API_KEY || '';
-  const model = key.startsWith('gsk_') ? 'llama-3.3-70b-versatile' : (process.env.XAI_MODEL || 'grok-3-mini');
+  const model = getModel();
 
   const completion = await groq.chat.completions.create({
     model,
