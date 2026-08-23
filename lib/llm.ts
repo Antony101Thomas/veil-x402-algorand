@@ -155,6 +155,14 @@ export async function chatWithIntent(
     ? lastAssistantMsg.slice(0, 120).replace(/\n/g, ' ')
     : '';
 
+  // --- Demo Hack for Unreliable Free LLMs ---
+  // Free models (like openrouter/free) sometimes hallucinate instead of classifying.
+  // If the user explicitly asks for the demo data, we guarantee a FETCH intent.
+  const lowerMsg = lastUserMsg.toLowerCase();
+  if (lowerMsg.includes('fetch') || lowerMsg.includes('price') || lowerMsg.includes('market') || lowerMsg.includes('data')) {
+    return { type: 'fetch', resourceId: 'premium-data' };
+  }
+
   // Step 1 — classify (no system prompt to avoid 413)
   const classify = await groq.chat.completions.create({
     model,
