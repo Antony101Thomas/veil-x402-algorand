@@ -25,7 +25,7 @@ function getBaseUrl() {
 
 function getModel() {
   const key = process.env.XAI_API_KEY || '';
-  if (key.startsWith('sk-or-')) return process.env.XAI_MODEL || 'google/gemini-2.0-flash-lite-preview-02-05:free'; // OpenRouter free model
+  if (key.startsWith('sk-or-')) return process.env.XAI_MODEL || 'openrouter/free'; // Reliable auto-routing free model
   if (key.startsWith('gsk_')) return 'groq/compound'; // User's Groq model
   return process.env.XAI_MODEL || 'grok-3-mini';
 }
