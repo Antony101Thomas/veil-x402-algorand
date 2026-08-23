@@ -110,31 +110,29 @@ export default function AgentDashboard() {
     setDraft('')
     pushChat('user', message)
     setBusy(true)
-    pushLog(`GET /api/${RESOURCE.id}`, 'muted')
 
     try {
-      const res = await fetch(`/api/${RESOURCE.id}`)
-      const text = await res.text()
+      pushLog('Starting agent orchestrator flow...', 'muted')
+      const res = await fetch('/api/agent/run', { method: 'POST' })
+      const data = await res.json()
+      
       const tone: LogEntry['tone'] =
         res.status === 200 ? 'ok' : res.status === 402 ? 'warn' : 'err'
-      pushLog(`GET /api/${RESOURCE.id} → ${res.status}`, tone)
+      
+      pushLog(`Orchestrator finished with HTTP ${res.status}`, tone)
 
       if (res.status === 402) {
-        pushChat(
-          'agent',
-          'Server returned 402 Payment Required (x402). This UI does not mint capabilities — no credential was issued. Pay-and-mint still has to run through the orchestrator on TestNet.'
-        )
+        pushChat('agent', 'Payment failed or resource still returned 402 after payment attempt.')
+      } else if (res.status === 403) {
+        pushChat('agent', 'Access denied. The capability might be revoked or expired.')
       } else if (res.status === 200) {
-        pushChat(
-          'agent',
-          `Resource returned 200. No capability record was created in this dashboard. ${text.slice(0, 400)}`
-        )
+        pushChat('agent', `Success! ${data.summary || JSON.stringify(data.data)}`)
       } else {
-        pushChat('agent', `Request failed with HTTP ${res.status}.`)
+        pushChat('agent', `Agent error: ${data.error || 'Unknown failure'}`)
       }
-    } catch {
-      pushLog(`GET /api/${RESOURCE.id} failed`, 'err')
-      pushChat('agent', `Could not reach /api/${RESOURCE.id}.`)
+    } catch (err: any) {
+      pushLog(`Orchestrator call failed: ${err.message}`, 'err')
+      pushChat('agent', `Could not reach the agent orchestrator.`)
     }
 
     setBusy(false)

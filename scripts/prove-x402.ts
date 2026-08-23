@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import '../lib/load-env';
 import { discover_resource, request_resource_with_payment } from '../agent/orchestrator';
 
 async function main() {

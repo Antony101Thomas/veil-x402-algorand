@@ -130,20 +130,19 @@ export async function request_resource_with_payment(
  */
 export async function obtain_capability(
   paymentResponse: { status: number; body: unknown; headers: Headers },
-): Promise<CapabilityRecord | null> {
+): Promise<{ credentialId: string; disposablePrivateKeyBase64: string } | null> {
   if (paymentResponse.status !== 200) return null;
 
+  const body = paymentResponse.body as any;
   const credentialId =
     paymentResponse.headers.get('x-veil-credential-id') ??
-    (paymentResponse.body as { credentialId?: string } | undefined)?.credentialId;
+    body?.credentialId;
+    
+  const disposablePrivateKeyBase64 = body?.disposableKeyBase64;
 
-  if (!credentialId) return null;
+  if (!credentialId || !disposablePrivateKeyBase64) return null;
 
-  // TODO: call the generated VeilCapability typed client's getCapability()
-  // readonly method here once contracts/veil_capability is deployed, e.g.:
-  //   const cap = await veilCapabilityClient.getCapability({ credentialId });
-  // For now this is a stub the team can fill in once the typed client exists.
-  throw new Error('obtain_capability: wire up the VeilCapability typed client here');
+  return { credentialId, disposablePrivateKeyBase64 };
 }
 
 // --- Tool 5: access_with_capability --------------------------------------
@@ -156,10 +155,36 @@ export async function obtain_capability(
 export async function access_with_capability(
   resource: ResourceInfo,
   credentialId: string,
+  disposablePrivateKeyBase64: string
 ): Promise<{ status: number; body: unknown }> {
-  const res = await fetch(resource.endpoint, {
-    headers: { 'x-veil-credential-id': credentialId },
+  // 1. Request a nonce
+  const nonceRes = await fetch(`${RESOURCE_SERVER_BASE}/api/auth/nonce`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ credentialId })
   });
+
+  if (!nonceRes.ok) {
+    return { status: nonceRes.status, body: { error: 'Failed to obtain nonce' } };
+  }
+
+  const { nonce } = await nonceRes.json();
+
+  // 2. Sign the nonce with the disposable key
+  const privateKeyBytes = Buffer.from(disposablePrivateKeyBase64, 'base64');
+  const messageBytes = Buffer.from(nonce);
+  const signatureBytes = algosdk.signBytes(messageBytes, privateKeyBytes);
+  const signatureBase64 = Buffer.from(signatureBytes).toString('base64');
+
+  // 3. Request the resource with the signed nonce
+  const res = await fetch(resource.endpoint, {
+    headers: { 
+      'x-credential-id': credentialId,
+      'x-nonce': nonce,
+      'x-signature': signatureBase64
+    },
+  });
+  
   const text = await res.text();
   let body: unknown = {};
   try {
@@ -203,9 +228,22 @@ export async function run(callModel: (prompt: string) => Promise<string>): Promi
       return { status: 'error', error: `Unexpected status ${paymentResult.status}` };
     }
 
-    const summary = await summarize_data(paymentResult.body, callModel);
+    // 1. Obtain capability
+    const capInfo = await obtain_capability(paymentResult);
+    if (!capInfo) {
+      return { status: 'error', error: 'Failed to obtain capability from payment response.' };
+    }
 
-    return { status: 'ok', data: paymentResult.body, summary };
+    // 2. Access with capability (proving it works without paying again!)
+    const accessResult = await access_with_capability(resource, capInfo.credentialId, capInfo.disposablePrivateKeyBase64);
+    
+    if (accessResult.status !== 200) {
+      return { status: 'error', error: `Capability access failed with status ${accessResult.status}. ${JSON.stringify(accessResult.body)}` };
+    }
+
+    const summary = await summarize_data(accessResult.body, callModel);
+
+    return { status: 'ok', data: accessResult.body, summary };
   } catch (err) {
     return { status: 'error', error: err instanceof Error ? err.message : 'Unknown error' };
   }
