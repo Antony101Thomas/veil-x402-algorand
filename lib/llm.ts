@@ -142,7 +142,7 @@ export async function chatWithIntent(
   messages: ChatMessage[],
 ): Promise<ChatIntentResult> {
   const groq = getClient();
-  const model = process.env.XAI_MODEL ?? getDefaultModel();
+  const model = process.env.XAI_MODEL || getDefaultModel();
 
   const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user')?.content ?? '';
 
@@ -197,7 +197,7 @@ export async function summarizeData(
   _messages: ChatMessage[],
 ): Promise<string> {
   const groq = getClient();
-  const model = process.env.XAI_MODEL ?? getDefaultModel();
+  const model = process.env.XAI_MODEL || getDefaultModel();
 
   const dataStr = JSON.stringify(data);
   const response = await groq.chat.completions.create({
@@ -219,7 +219,7 @@ export async function summarizeData(
 
 export async function callModel(prompt: string): Promise<string> {
   const groq = getClient();
-  const model = process.env.XAI_MODEL ?? getDefaultModel();
+  const model = process.env.XAI_MODEL || getDefaultModel();
 
   const completion = await groq.chat.completions.create({
     model,
