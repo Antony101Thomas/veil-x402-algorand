@@ -141,12 +141,12 @@ function Reveal({
 }
 
 export default function LandingPage() {
-  const [revoked, setRevoked] = useState(false);
   const router = useRouter();
 
   // Returning visitor with an existing demo session? Skip straight to their dashboard.
   useEffect(() => {
-    const raw = localStorage.getItem(SESSION_KEY);
+    const match = document.cookie.match(new RegExp('(^| )' + SESSION_KEY + '=([^;]+)'));
+    const raw = match ? decodeURIComponent(match[2]) : null;
     if (!raw) return;
     try {
       const session = JSON.parse(raw) as { role?: 'agent' | 'admin' };
@@ -206,31 +206,15 @@ export default function LandingPage() {
                 {'\n'}
                 <span className="line line--muted">retry with payment proof…</span>
                 {'\n\n'}
-                {!revoked ? (
-                  <>
-                    <span className="line line--ok">200 OK</span>
-                    {'\n'}
-                    <span className="line line--muted">
-                      {'{ asset: "ALGO", price: 0.214, change24h: "+4.8%" }'}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <span className="line line--err">403 Forbidden</span>
-                    {'\n'}
-                    <span className="line line--muted">
-                      capability revoked — access denied
-                    </span>
-                  </>
-                )}
+                <>
+                  <span className="line line--ok">200 OK</span>
+                  {'\n'}
+                  <span className="line line--muted">
+                    {'{ asset: "ALGO", price: 0.214, change24h: "+4.8%" }'}
+                  </span>
+                </>
               </code>
             </pre>
-            <button
-              className="transcript__toggle"
-              onClick={() => setRevoked((r) => !r)}
-            >
-              {revoked ? 'Reissue capability' : 'Revoke capability'}
-            </button>
           </div>
         </Reveal>
       </section>

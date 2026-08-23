@@ -64,7 +64,8 @@ export default function AgentDashboard() {
   const [retryResult, setRetryResult] = useState<'idle' | 'pending' | 'forbidden'>('idle')
 
   useEffect(() => {
-    const raw = localStorage.getItem(SESSION_KEY)
+    const match = document.cookie.match(new RegExp('(^| )' + SESSION_KEY + '=([^;]+)'))
+    const raw = match ? decodeURIComponent(match[2]) : null
     if (!raw) {
       router.replace('/login')
       return
@@ -103,7 +104,7 @@ export default function AgentDashboard() {
   }
 
   function handleLogout() {
-    localStorage.removeItem(SESSION_KEY)
+    document.cookie = `${SESSION_KEY}=; path=/; max-age=0`
     router.push('/login')
   }
 

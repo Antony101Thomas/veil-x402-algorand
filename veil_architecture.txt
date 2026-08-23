@@ -1,0 +1,1207 @@
+Veil — Technical Architecture Document
+x402
+Algorand TestNet
+Autonomous Agents
+Hackathon MVP
+Version 1.0 — Consolidated Architecture
+Merges product/agent design with capability
+security model
+A R C H I T E C T U R E & T E C H N I C A L D E S I G N
+Veil
+Payment-Derived
+Authorization
+for Autonomous Agents
+An economic capability layer that lets AI agents pay for access
+instead of holding permanent credentials.
+Thesis: payment is how an agent acquires authorization. The credential Veil
+issues is not a receipt, not a login token, and not an API key — it is a
+scoped, expiring, revocable capability, and Algorand's transaction and
+smart-contract primitives enforce that capability directly, without a
+centralized session store deciding access on every call. 
+Veil
+Architecture & Technical Design | Page 1 of 33
+
+---PAGE BREAK---
+Table of Contents
+A single, consolidated architecture — product and agent design merged with the on-chain capability security
+model.
+1. Executive Summary
+2. Problem: Why Existing x402
+APIs Are Not Enough
+3. The Veil Solution
+4. Real-World Use Case
+5. Core Architecture
+6. Component Responsibilities
+7. AI Agent Architecture
+8. x402 Payment Architecture
+9. Algorand Architecture
+10. Capability Data Model
+11. Atomic Payment + Capability
+Issuance
+12. Disposable Address Model
+13. Nonce + Signature Verification
+14. Resource Server Authorization
+15. Revocation, Expiry & Quota
+16. Database & Audit Architecture
+17. Admin Architecture
+18. Security & Threat Model
+19. Privacy Model
+20. End-to-End Sequence
+21. Frontend / Product Architecture
+22. Veil vs. a Basic x402 API
+23. MVP Scope & Stretch Goals
+24. Implementation Roadmap
+25. Deployment Architecture
+26. Demo Script
+27. Architecture Decisions &
+Tradeoffs
+28. Final Definition of Done
+Veil — Architecture & Technical Design | Page 2 of 33
+
+---PAGE BREAK---
+1 Executive Summary
+Veil is an authorization layer for autonomous AI agents. It answers a question that neither payments
+infrastructure nor traditional identity systems answer well: once an agent has paid for something,
+exactly what is it allowed to do, for how long, and how many times?
+Two protocols do the heavy lifting, and Veil deliberately keeps them separate rather than blurring them together:
+Layer
+Question it answers
+x402
+Has the agent paid for this resource? x402 is the payment mechanism — the HTTP-native "402
+Payment Required" handshake that lets an agent settle a machine-payable price before
+proceeding.
+Veil capability
+Exactly what is this agent allowed to do, now that it has paid? Veil converts a settled payment into
+a narrowly scoped, quota-limited, time-boxed, revocable grant.
+Algorand
+Where is that grant enforced? Algorand's box storage holds the authoritative capability record; its
+atomic transaction groups guarantee payment and issuance rise or fall together; its deterministic
+rounds give expiry an unambiguous, oracle-free clock.
+x402 is not the product. x402 is the payment rail. The product is the authorization model that payment triggers:
+a disposable-address-bound, nonce-proven, on-chain-enforced capability that replaces the long-lived API key an
+agent would otherwise need. Everywhere in this document, Veil is described as a payment-derived authorization
+layer, never as "an API with x402 bolted on."
+This document merges two prior working drafts of the Veil architecture into one coherent design. The product
+vision, agent workflow, service decomposition, and frontend/admin experience come from the original proposal.
+The precise blockchain mechanics — atomic issuance, disposable addresses funded by the issuer (not the
+agent), nonce/signature proof, replay protection, and an honestly-scoped privacy and threat model — come from
+the follow-up security review. Where the two disagreed, this document says so explicitly in Section 27 rather
+than silently picking a side.
+WHY THIS MATTERS
+An AI agent that can autonomously discover and pay for resources is also an agent that, under the old model,
+would need a standing API key to use what it paid for. Standing keys are broad, long-lived, and expensive to
+revoke cleanly. Veil's alternative is a credential that is born scoped to one resource, one action, a fixed quota,
+and a short expiry — and that can be killed instantly and unambiguously by a single on-chain write. 
+Veil — Architecture & Technical Design | Page 3 of 33
+
+---PAGE BREAK---
+2 Problem: Why Existing x402 APIs Are Not Enough
+x402 solves machine-to-machine payment. It does not solve machine-to-machine authorization.
+Treating the two as the same problem is the mistake Veil is built to correct.
+A typical "x402-protected API" today looks like this: an agent calls an endpoint, receives an HTTP 402 with a
+price, pays, and receives data back. That flow is complete as a payment flow, but it is silent on everything that
+matters for access control:
+What exactly did the payment authorize — one call, unlimited calls, read-only, write access?
+How long does that authorization last?
+Who — or what — is allowed to present that authorization? Can it be copied and reused by something else?
+Can the provider revoke access if the agent turns out to be misbehaving, without waiting for a natural expiry?
+Is there any proof, beyond a bare credential string, that the party presenting the credential is the one who
+actually paid for it?
+Most "pay-per-call" APIs answer none of these questions, because they conflate payment with authorization:
+paying is getting access, full stop, usually via a static key or token minted once and valid indefinitely. That is a
+reasonable simplification for a human clicking "subscribe." It is a poor fit for an autonomous agent that:
+may be compromised, misconfigured, or simply buggy, and should not be able to do unbounded damage with
+a credential it acquired for one narrow task;
+may run unattended for long periods, so a credential that never expires is a standing liability rather than a
+convenience;
+increasingly needs different scopes for different actions (reading a price feed is not the same risk as
+submitting a write to a ledger), which a single static key cannot express.
+THE GAP VEIL FILLS
+x402 tells you a payment cleared. It does not tell you what the payer is now allowed to do, for how long, or how
+many times — and it gives the resource server no cryptographic way to confirm that the entity presenting a
+credential is the entity that paid for it. Veil is the missing authorization layer that turns a cleared payment into a
+precisely bounded grant. 
+• 
+• 
+• 
+• 
+• 
+• 
+• 
+• 
+Veil — Architecture & Technical Design | Page 4 of 33
+
+---PAGE BREAK---
+3 The Veil Solution
+Veil sits between the payment event and the resource access decision, and converts the former into a
+scoped grant that governs the latter.
+AI Agent
+  ↓ needs a paid resource
+Resource responds with HTTP 402
+  ↓ agent pays through x402
+ALGO payment settles on Algorand
+  ↓
+Veil issues a narrowly scoped capability (atomically, with the payment)
+  ↓
+Agent proves possession of the capability (nonce + signature)
+  ↓
+Resource server validates the capability against on-chain state
+  ↓
+Agent gets access 
+Three properties define the solution, and each is load-bearing rather than cosmetic:
+Property
+What it means in Veil
+Scoped
+A capability names exactly one resource and exactly one action (READ, WRITE, COMPUTE,
+QUERY). It does not imply access to anything else the same provider, or any other provider,
+exposes.
+Bounded
+Every capability carries a quota (maximum uses) and an expiry expressed as an Algorand
+round number, so both "how many times" and "until when" are enforced without trusting a
+clock or a session store.
+Revocable
+A provider can invalidate a capability with a single authoritative write to on-chain state. The
+very next validation attempt sees the revoked flag and rejects the request — there is no
+propagation delay to a cache or a second system of record.
+Crucially, the authorization decision itself does not live in a piece of application code that a compromised server
+operator could quietly override. The capability record lives in an Algorand application's box storage, and
+payment-to-issuance is enforced atomically inside a transaction group rather than by an off-chain service's say-
+so (see Sections 9 and 11). The Veil issuer is a convenience layer — key generation, funding, request assembly
+— not the trust root for the authorization decision.
+Veil — Architecture & Technical Design | Page 5 of 33
+
+---PAGE BREAK---
+4 Real-World Use Case
+AI Procurement Agent
+A user asks an autonomous procurement agent: "Find the cheapest supplier for 500 units of this
+component." Answering well requires a premium supplier-pricing feed that the agent does not have
+standing access to.
+User → AI Procurement Agent
+  ↓ discover_resource()
+Premium Supplier Pricing API
+  ↓ 402 Payment Required
+Agent pays ALGO through x402
+  ↓ atomic payment + capability issuance
+READ capability — 5 requests, 30-minute expiry
+  ↓ agent signs a freshly issued nonce
+Resource server verifies signature + capability state
+  ↓
+200 OK — supplier pricing data returned 
+The demo does not stop at the happy path. Two follow-on moments make the authorization model concrete
+rather than theoretical:
+SCOPE ENFORCEMENT
+The same agent attempts a WRITE against the
+pricing endpoint using its READ -scoped capability.
+The resource server rejects it with 403 — not
+because the credential is invalid, but because the
+action does not match what was authorized. 
+REVOCATION
+An administrator revokes the capability from the
+dashboard mid-session. The agent's next request
+— otherwise identical, well within quota and expiry
+— is rejected with 403 because the authoritative
+on-chain record now shows revoked = true . 
+Why this matters: the agent never held a permanent API key to the supplier-pricing service. It held a purpose-
+built, time-boxed grant that existed because — and only as long as — a specific payment authorized it. That is
+the difference between "paying to unlock an API" and an economic authorization layer.
+Veil — Architecture & Technical Design | Page 6 of 33
+
+---PAGE BREAK---
+5 Core Architecture
+Diagram 1 — high-level system architecture. The frontend, agent, and admin surfaces are all
+consumers of state that ultimately comes from the resource server and Algorand; none of them are
+trusted to assert their own authorization.
+Diagram 1. Solid arrows follow the request/issuance path; dashed grey arrows are logging/state writes to Supabase; the dashed
+red arrow is the admin revoke path into Algorand.
+Note what this diagram deliberately does not show: the frontend or the database asserting that a capability is
+valid. Both are consumers of state; the resource server's validation logic and Algorand's box storage are the only
+parties that can say "yes, this is authorized."
+User
+Frontend (Next.js)
+Dashboard · Chat · Capabilities · Admin
+AI Agent Orchestrator
+LLM reasoning + controlled tool calls
+x402 Layer + Resource Server
+402 handshake · capability validation
+nonce challenge · scope/expiry/quota checks
+Veil Issuer / Capability Service
+disposable address funding · atomic group
+assembly · nonce/signature service
+Algorand TestNet
+Capability app · box storage · indexer
+badge ASA (optional) · treasury account
+Protected Resource API
+e.g. /api/premium-data
+Supabase / Postgres
+logs · payments · audit trail (not authority)
+Admin Dashboard
+revoke · view capability & audit state
+Veil — Architecture & Technical Design | Page 7 of 33
+
+---PAGE BREAK---
+6 Component Responsibilities
+Every service below has one job. Nothing is collapsed into a vague "backend" — each responsibility
+maps to code that a specific team member owns.
+Component
+Responsibilities
+Agent Orchestrator
+LLM reasoning and tool selection; resource discovery; initiating requests; driving the payment
+workflow; acquiring capabilities; accessing protected resources; summarizing results for the
+user. The LLM chooses which tool to call — it never decides whether a payment or a capability
+is valid.
+x402 Layer
+Issuing HTTP 402 responses with payment requirements; verifying and settling payments;
+integrating with the Algorand-compatible x402 packages ( @x402/core , @x402/avm , 
+@x402/fetch ) rather than a hand-rolled protocol.
+Veil Issuer /
+Capability Service
+Generating a disposable address per capability, funded from the issuer's own operational
+reserve; assembling the atomic transaction group (payment + capability write + optional badge
+transfer); recording capability metadata; maintaining the private payer ↔ disposable-address
+mapping.
+Nonce / Signature
+Service
+Issuing a fresh, single-use nonce per access attempt; verifying that the presented signature
+was produced by the capability's bound disposable-address key; rejecting replays of a
+previously used nonce/signature pair.
+Resource Server
+Accepting a credential ID and a signed nonce; reading authoritative capability state via the
+Algorand indexer; checking resource scope, action, expiry round, revocation flag, and quota, in
+that order; returning 200 or 403 with a reason.
+Algorand Service
+TestNet connectivity; transaction construction and atomic grouping; application calls against the
+capability contract; box-state reads and writes; indexer queries used by the resource server.
+Database
+(Supabase/
+Postgres)
+Application-level records only: request logs, payment logs, audit trail, agent activity, and the
+private issuer-side payer mapping. Not the source of truth for whether a capability is currently
+valid — that answer always comes from Algorand box state.
+Admin Service /
+Dashboard
+Displaying active capabilities and their state; issuing the revoke action, which is itself an
+authenticated app call against the capability contract, not a database flag flip.
+Veil — Architecture & Technical Design | Page 8 of 33
+
+---PAGE BREAK---
+7 AI Agent Architecture
+The agent is a real, tool-using autonomous workflow — not a chat wrapper around a single API call.
+The LLM is the reasoning and orchestration layer; every action with real-world consequence goes
+through a deterministic, non-LLM-controlled tool.
+Tool
+What it does
+discover_resource()
+Identifies which registered resource can satisfy the current task and what it costs.
+request_resource()
+Issues the initial HTTP request against the protected endpoint.
+pay_x402()
+Parses the 402 payment requirement and drives the x402 payment flow to
+settlement on Algorand.
+obtain_capability()
+Confirms the atomic payment + capability issuance completed and retrieves the
+resulting credential ID and disposable-address key material.
+access_with_capability()
+Requests a nonce, signs it with the disposable address's key, and presents the
+signed nonce plus credential ID to the resource server.
+summarize_result()
+Passes the returned data back to the LLM for natural-language summarization for
+the user.
+DESIGN PRINCIPLE
+Payment verification and capability validation are deterministic backend and on-chain operations. The LLM
+never adjudicates "did this payment clear" or "is this capability still valid" — those checks happen in the x402
+layer, the capability contract, and the resource server, none of which take instructions from model output. 
+For the hackathon build, the agent is deliberately constrained to a known resource set and a fixed payment
+ceiling per task. That keeps the demo predictable and removes the failure mode of an LLM deciding, on its own,
+to spend more than intended.
+Veil — Architecture & Technical Design | Page 9 of 33
+
+---PAGE BREAK---
+8 x402 Payment Architecture
+Diagram 2 — the payment handshake. x402 v2 uses standardized headers ( PAYMENT-REQUIRED , 
+PAYMENT-SIGNATURE , PAYMENT-RESPONSE ); the current official Algorand integration path uses the 
+@x402/core , @x402/avm , and @x402/fetch packages against a facilitator on Algorand TestNet.
+Diagram 2. The 402 → pay → retry pattern, with step 4 expanded in Section 11 into a full atomic transaction group.
+Two things are worth stating plainly. First, x402 alone stops at step 4's payment settlement — the capability
+issuance is Veil's addition, and it is deliberately fused into the same atomic step rather than treated as a separate
+follow-up call (see Section 11). Second, this document does not describe Veil as replacing x402; x402 remains
+the payment protocol, and Veil extends its result into scoped, temporary authorization.
+Agent
+Resource API
+1. GET /resource
+2. 402 Payment Required (price + scope)
+3. Signed ALGO payment via x402 facilitator
+4. Payment settled + capability issued (atomic)
+5. Retry with capability + signed nonce →200 OK
+Veil — Architecture & Technical Design | Page 10 of 33
+
+---PAGE BREAK---
+9 Algorand Architecture
+Algorand is used precisely, for what its primitives actually guarantee — not cited as a generic
+"blockchain = trust" argument.
+Feature
+How Veil uses it
+What it does not guarantee
+Atomic transaction
+groups
+Payment, optional badge transfer, and capability box
+write commit as a single unit (up to 16 transactions
+grouped).
+Does not protect against a malicious
+resource server after issuance —
+only protects the mint step itself.
+Box storage
+Holds the capability record (scope, quota, expiry,
+revoked flag) at low, refundable cost.
+Box reads still require an indexer or
+node query — this is not free at
+arbitrary request volume, which is
+why quota is cached rather than
+checked on-chain per call (Section
+15).
+Default-frozen ASA
++ clawback
+The optional badge ASA is created default_frozen
+= true ; the issuer holds clawback and freeze
+authority, moving the asset into the disposable account
+at mint and back out at revocation. This makes the
+badge soulbound and instantly revocable using one
+mechanism.
+Does not prevent the private key
+itself being stolen — soulboundness
+stops transfer of the token, not
+misuse by whoever already holds the
+signing key.
+Deterministic round
+numbers
+Expiry is expressed as current_round <
+expiry_round . Every validator agrees on the current
+round — no clock drift, no timezone ambiguity, no
+oracle needed.
+Round times vary slightly; this is not
+a mechanism for expiring something
+at an exact wall-clock second, only
+"within one round's tolerance."
+Low fees / fast
+finality
+Makes atomic, per-grant minting practical at the
+frequency an autonomous agent might request
+resources.
+Does not make per-request, on-chain
+quota decrementing viable at high
+call volume — that remains a
+deliberate MVP cut (Section 15).
+The Algorand application and its box storage are the authoritative source of truth for capability state.
+Supabase is not — it holds operational and audit records, never the deciding answer to "is this capability
+currently valid."
+Veil — Architecture & Technical Design | Page 11 of 33
+
+---PAGE BREAK---
+10 Capability Data Model
+A capability is a record, not a token balance and not a receipt. It is stored in the capability application's
+box storage, keyed by credential ID.
+Capability {
+  credential_id: bytes32   // unique identifier for this grant
+  resource_id:   bytes32   // exactly which resource this authorizes
+  action:        uint8     // READ | WRITE | COMPUTE | QUERY
+  quota:         uint64    // remaining permitted uses
+  expiry_round:  uint64    // Algorand round number, not wall-clock time
+  holder:        address   // the disposable address bound to this grant
+  revoked:       bool      // provider-set invalidation flag
+}
+Field
+Meaning
+Scope
+( resource_id )
+What resource this grant applies to — never implicitly extends to any other endpoint or provider.
+Action
+What operation is authorized: READ , WRITE , COMPUTE , or QUERY . A capability minted for
+one action is rejected outright if presented against another.
+Quota
+How many uses remain under this grant. Decremented per successful access (subject to the
+caching model in Section 15).
+Expiry
+The Algorand round after which the capability is no longer valid, regardless of remaining quota.
+Holder
+The disposable address that must produce a valid signature to exercise this capability — see
+Section 12.
+Revocation
+A boolean the provider can set via an authenticated app call at any time before expiry,
+independent of quota or scope.
+Veil — Architecture & Technical Design | Page 12 of 33
+
+---PAGE BREAK---
+11 Atomic Payment + Capability Issuance
+Diagram 3 — payment and capability issuance happen inside one Algorand atomic transaction group.
+This is the mechanism that eliminates "payment succeeded but capability issuance failed" as a
+possible failure mode — it is not merely a nice-to-have, it removes an entire class of bugs and
+disputes by construction.
+Diagram 3. The badge transfer (step 3) is explicitly optional and can be cut under time pressure without weakening the core
+guarantee — see Section 23.
+Replay protection
+The capability contract maintains a consumed-payment set in box storage. Before writing a new capability, the
+application call checks the incoming payment transaction's ID against that set. A given payment transaction can
+mint exactly one capability; replaying the same payment ID a second time is rejected at the contract level, not
+merely discouraged by convention.
+Edge case
+Resolution
+Payment succeeds, issuance fails
+Impossible by construction — both are in the same atomic group.
+Same payment transaction reused
+Rejected via the consumed-payment set check inside the application call.
+Expired credential still presented
+Checked against the current round at validation time, never against a cached
+client-side value.
+ATOMIC TRANSACTION GROUP — commits or fails together
+1. Payment
+Agent's disposable/funding path →Veil treasury (ALGO)
+2. Application Call
+Create capability / write the capability box (checks consumed-payment set first)
+3. Optional — Badge ASA Transfer
+Clawback-based transfer of the default-frozen badge to the disposable holder
+Either all three steps succeed, or none of them do.
+Veil — Architecture & Technical Design | Page 13 of 33
+
+---PAGE BREAK---
+12 Disposable Address Model
+Each capability is bound to a fresh, single-use Algorand address rather than the agent's or the payer's
+permanent wallet.
+Agent requests access
+  ↓
+Veil issuer generates a disposable keypair
+  ↓ funded from the issuer's own operational reserve
+Capability holder = disposable address
+  ↓
+Credential ID + disposable private key handed to the agent 
+Why a disposable address, rather than the agent's own identity, holds each grant:
+Capability isolation — compromising one capability's key does not expose any other capability the same
+agent holds.
+Reduced credential reuse — there is nothing long-lived to leak; a stolen disposable key is only useful until
+that capability's expiry or revocation.
+Limited blast radius — a stolen or misused disposable address can only exercise the one scope, quota,
+and action it was minted for.
+Improved privacy — the resource server sees the disposable address, not a persistent identity that would
+let it correlate requests across sessions.
+Stronger holder binding — the nonce/signature proof in Section 13 only means something because the
+holder address is fresh and single-purpose, not a shared identity used everywhere.
+CORRECTION CARRIED FORWARD FROM THE SECURITY REVIEW
+The privacy benefit above only holds if the issuer funds each disposable address's minimum balance from its
+own operational reserve — not if the agent funds it from its own wallet. Whoever funds an address's minimum
+balance is visible on-chain and trivially correlates back to that funder. If the agent funded its own "disposable"
+addresses, a chain-analysis tool could link every one of them straight back to the same source wallet, which
+would quietly defeat the entire privacy rationale. Veil's issuer therefore always funds disposable addresses itself;
+this is stated explicitly rather than left as an unstated assumption. 
+CUSTODY NOTE — AN INTENTIONAL MVP SCOPING CHOICE, NOT A HIDDEN GAP
+For the hackathon build, the issuer generates the disposable keypair on the agent's behalf and hands the
+private key back once the capability is minted (custodial-at-birth, handed off immediately). Full non-custodial,
+client-side key generation is possible and is listed as a stretch item; it adds complexity without changing the core
+authorization novelty this project demonstrates, so it is named here rather than silently deferred. 
+• 
+• 
+• 
+• 
+• 
+Veil — Architecture & Technical Design | Page 14 of 33
+
+---PAGE BREAK---
+13 Nonce + Signature Verification
+Diagram 4 — proof of possession. A bare credential ID is not sufficient proof of authorization, because
+anything that observes it (a server log, a network trace) could try to replay it. The resource server
+therefore requires a signature over a nonce it issues fresh for every access attempt.
+Diagram 4. Order of checks matters for good error messages: scope, then action, then expiry, then revocation, then quota —
+each failure mode returns a distinguishable reason, which is itself a useful demo detail.
+The signature step is not optional. Without it, anyone who observes a credential ID — in a log line, a network
+capture, a proxy — could present it as their own and be granted access, since a bare identifier carries no proof of
+who is presenting it. Requiring a fresh signature per attempt closes that gap: a captured old signature is
+worthless against a newly issued nonce.
+Agent
+Resource Server
+Algorand
+1. present credential ID
+2. fresh nonce
+3. nonce signed by disposable-address key
+4. read capability (via indexer)
+5. capability box state
+verify signature
+check scope + action
+check expiry + revocation
+check quota
+6. 200 OK / 403 Forbidden
+Veil — Architecture & Technical Design | Page 15 of 33
+
+---PAGE BREAK---
+14 Resource Server Authorization
+The resource server never treats its own database as authoritative for whether a request is allowed. Its
+validation path always terminates at Algorand's box state, reached through the indexer.
+Resource Server
+  ↓
+Algorand Indexer
+  ↓
+Capability App / Box State (authoritative) 
+Validation, step by step:
+Receive the credential ID and the signed nonce from the agent.
+Look up the capability's box state via the indexer.
+Verify the signature was produced by the address recorded as holder .
+Check resource_id matches the endpoint being called.
+Check action matches the operation being requested.
+Check current_round < expiry_round .
+Check revoked == false .
+Check quota > 0 .
+If every check passes: serve the request and account for the used quota unit (see Section 15 for the caching
+model). If any check fails: return 403 with the specific failing reason.
+Returning a specific rejection reason — wrong scope, expired, revoked, or quota exhausted, rather than a single
+opaque 403 — demonstrates that enforcement is fine-grained rather than binary, and is worth surfacing in both
+logs and the demo UI.
+1. 
+2. 
+3. 
+4. 
+5. 
+6. 
+7. 
+8. 
+9. 
+Veil — Architecture & Technical Design | Page 16 of 33
+
+---PAGE BREAK---
+15 Revocation, Expiry & Quota
+Revocation — the core "wow moment"
+Capability ACTIVE
+  ↓
+Agent accesses resource — 200 OK
+  ↓
+Admin clicks REVOKE (authenticated app call)
+  ↓
+Capability's revoked flag flips on Algorand
+  ↓
+Agent attempts access again — same request, no changes
+  ↓
+403 Forbidden 
+Because both the resource server and the admin action read and write the same on-chain box, there is no
+window in which two different validators could disagree about whether a capability is currently revoked.
+Revocation is a single authoritative write, not an eventually-consistent cache update.
+Expiry
+Expiry uses an Algorand round number, not a wall-clock timestamp. Every validator agrees on the current round,
+which removes clock-drift, timezone ambiguity, and any need for an external time oracle. The tradeoff, stated
+honestly: round-based expiry is precise to within roughly a round's duration, not to the exact second —
+acceptable for authorization windows measured in minutes, not for use cases needing sub-second precision.
+Quota — deliberately not enforced on-chain per request
+Algorand → initial capability/quota state
+  ↓
+Resource Server → local/cached quota enforcement
+  ↓
+Periodic on-chain reconciliation (if/when required) 
+Calling the capability contract to decrement a counter on every single API call would reintroduce exactly the
+latency and fee overhead the design is trying to avoid, for a check that mostly matters in aggregate rather than
+per-call. The MVP therefore treats quota as checked-and-cached by the resource server between periodic on-
+chain reconciliations. Per-request, on-chain quota decrementing is explicitly a stretch/future feature, not
+something this MVP claims to solve — see Section 23.
+Veil — Architecture & Technical Design | Page 17 of 33
+
+---PAGE BREAK---
+16 Database & Audit Architecture
+Supabase/Postgres provides application-level persistence for everything that is either privacy-sensitive
+(shouldn't be on a public ledger) or purely operational (doesn't need consensus).
+Table
+Key fields
+agents
+agent_id, name, wallet_address, status, created_at
+resources
+resource_id, name, endpoint, price, currency, allowed_actions, description
+capabilities
+credential_id, resource_id, action, quota, expiry_round, holder_address, revoked,
+created_at — a mirrored, queryable view of on-chain state, for UI/indexing
+convenience
+payments
+payment_id, agent_id, amount, currency, resource_id, tx_id, status, timestamp
+requests
+request_id, agent_id, resource_id, credential_id, status_code, result, timestamp
+nonces
+nonce, credential_id, issued_at, used, expires_at
+blockchain_transactions
+tx_id, type, credential_id, round, status, timestamp
+audit_logs
+event_id, actor, event_type, metadata, timestamp
+payer_mapping
+PRIVATE
+payer_identity, disposable_address, capability_credential_id, created_at — issuer-
+only, used solely for dispute resolution, abuse investigation, or compliance; never
+exposed to the resource server during normal operation
+NON-NEGOTIABLE DISTINCTION
+The database mirrors and logs; Algorand box state decides. If the two ever disagree — say, a revoke transaction
+confirmed on-chain but the mirrored row failed to update — the resource server's answer must still come from
+the chain, not from Supabase. 
+Veil — Architecture & Technical Design | Page 18 of 33
+
+---PAGE BREAK---
+17 Admin Architecture
+The admin surface displays authoritative state and issues one meaningful write: revocation.
+Active capabilities view — credential ID, holder (disposable address), resource, action, quota remaining,
+expiry round, current status, all read from indexer/box state rather than from cached database values
+wherever the two could plausibly diverge.
+Revoke action — a single button that submits an authenticated application call flipping revoked = true
+on the target capability's box. This is the same contract-level mechanism the threat model in Section 18 relies
+on, not a soft "hide from UI" toggle.
+Payment / activity / audit logs — sourced from Supabase, useful for investigation and demo narration,
+explicitly not used to make authorization decisions.
+• 
+• 
+• 
+Veil — Architecture & Technical Design | Page 19 of 33
+
+---PAGE BREAK---
+18 Security & Threat Model
+The correct claim for Veil is blast-radius reduction, not "unhackable." If a credential or agent is
+compromised, the damage it can do is narrow, temporary, quota-limited, and revocable — never
+unlimited.
+Threat
+Mitigation
+Credential theft
+(disposable key leaked)
+Short expiry, narrow scope, and quota limit blast radius; a stolen credential is resource-
+specific and cannot be reused elsewhere.
+Replay of a credential
+presentation
+Fresh nonce per request; the agent must produce a new signature every time, so a
+captured old signature does not work against a new challenge.
+Credential transfer to a
+third party
+Holder binding checked at validation time; the optional default-frozen badge ASA
+additionally prevents the holder from ever transferring the badge itself.
+Payment replay (reusing a
+payment to mint twice)
+The application call checks the payment transaction's ID against a consumed-payment set
+in box storage before writing a new capability.
+Compromised agent
+Least-privilege scoping and short expiry mean a compromised agent can do bounded
+damage within one capability's scope, not everything the agent could ever access.
+Compromised issuer
+The issuer cannot mint a capability without a valid, atomically-grouped payment — the
+authorization decision lives in contract logic, not the issuer's say-so. Named, honest
+limitations remain: the issuer can still refuse service (denial of service) or leak its private
+payer-mapping store — both are called out here rather than hidden.
+Expiry race
+Round-based expiry means every validator agrees on "expired" at the same instant — no
+ambiguous window.
+Revocation race
+Revocation is a single atomic app call against shared authoritative on-chain state; there is
+no window where two resource servers could see different revocation states.
+Disposable-address
+correlation
+The issuer funds each disposable address from its own reserve, breaking the trivial
+funding-source link. Funding-pattern correlation across many grants over time is explicitly
+out of scope for this MVP (Section 19).
+Malicious/compromised
+resource server
+The resource server only ever learns the disposable address and the capability's scope —
+never the real payer's identity — which limits what it can learn even if it logs everything.
+This does not protect the agent from a resource server that simply refuses or misuses the
+data it is entitled to return.
+Trust boundaries
+Diagram 6 — who can trust whom, and with what.
+Veil — Architecture & Technical Design | Page 20 of 33
+
+---PAGE BREAK---
+Diagram 6. Blockchain does not solve every threat named above — it removes ambiguity about revocation, expiry, and payment-
+to-issuance atomicity specifically, and no further.
+Agent (untrusted for decisions)
+• Can hold a disposable key and sign nonces
+• Cannot forge signatures for a key it doesn't hold
+• Cannot expand its own scope, quota, or expiry
+• LLM output never reaches payment/authz logic directly
+Resource Server (semi-trusted)
+• Sees disposable address + scope only
+• Never sees the real payer's identity
+• Cannot alter box state, only read it
+• Can still misuse or withhold data it is asked to return
+Veil Issuer (trust-reduced, not trust-free)
+• Generates keys and funds disposable addresses
+• Cannot mint a capability without a valid atomic payment
+• Holds the private payer-mapping store — a real, named risk
+• Can deny service, but cannot fabricate authorization
+Algorand + Admin (authoritative)
+• Box state is the single source of authorization truth
+• Every validator agrees on round-based expiry
+• Admin revoke is one authoritative, atomic write
+• Database mirrors this; it does not decide anything
+Veil — Architecture & Technical Design | Page 21 of 33
+
+---PAGE BREAK---
+19 Privacy Model
+Three conditions all have to hold for the disposable-address privacy claim to be meaningful, not
+merely cosmetic.
+A fresh disposable address is minted per grant.
+The issuer funds the address, not the agent — this is the mechanism that actually breaks the on-chain
+funding correlation. If the agent funded its own disposable addresses, a chain-analysis tool could trivially link
+every "anonymous" grant back to the same source wallet.
+The payer ↔ disposable-address mapping lives only in the issuer's private store, used solely for dispute
+resolution, abuse investigation, or compliance — never exposed to the resource server during normal
+operation.
+HONEST SCOPING STATEMENT
+Sender-side unlinkability is explicitly out of scope for this MVP. If an agent repeatedly tops up the issuer's
+account from the same funding source across many requests, a sophisticated observer performing timing or
+amount correlation could still link those grants together. Veil's actual guarantee is narrower and still meaningful:
+the resource server, by design, never sees a persistent identity across requests. That is not a guarantee against
+a global chain observer correlating funding patterns over time — and this document says so rather than
+overpromising "anonymity." 
+If issuer-funded disposable addresses reduce anything, the precise language is: they reduce straightforward
+address correlation between a payer's main identity and the capability address a resource server sees. That is
+a deliberately narrower and more defensible claim than "perfect anonymity," and it is the one this architecture
+makes.
+1. 
+2. 
+3. 
+Veil — Architecture & Technical Design | Page 22 of 33
+
+---PAGE BREAK---
+20 End-to-End Sequence
+Diagram 5 — the full Veil flow, start to finish, matching what a live demo actually executes.
+Diagram 5. Every arrow corresponds to a concrete tool call or contract interaction already defined in Sections 7, 8, 11, 13, and 15
+— nothing in this sequence is aspirational.
+discover
+resource
+request
+402
+pay
+(x402/ALGO)
+capability
+(atomic issue)
+disposable addr
+nonce
++ signature
+access
+200 OK
+revoke
+→retry
+→403
+discover →request →402 →pay →capability →nonce →access →revoke →403
+Veil — Architecture & Technical Design | Page 23 of 33
+
+---PAGE BREAK---
+21 Frontend / Product Architecture
+The browser is a viewer of backend- and blockchain-derived state. It never fabricates credentials,
+transaction IDs, or authorization decisions.
+Landing Page
+Hero explaining the payment → authorization thesis
+Flow diagram (Diagram 5, simplified)
+Security section summarizing Section 18
+Team
+Footer
+Agent Dashboard
+Dashboard overview
+AI Agent chat / task interface
+Capabilities list and detail view
+Payments history
+Resources catalog
+Activity / request timeline
+Capability detail view
+Shows: credential ID, holder (disposable address), transaction ID, resource, action, quota, expiry, status, and a
+revoke control (admin-only) — all values sourced from the resource server / indexer, not generated client-side.
+Admin Dashboard
+Active capabilities, with live status
+Revoke action per capability
+Payment / activity / audit logs
+Route
+Purpose
+Priority
+/
+Landing page — explain Veil in one screen
+P1
+/agent
+Agent dashboard
+P1
+/agent/chat
+Natural-language agent interaction
+P1
+/capabilities
+Capability list
+P1
+/
+capabilities/:id
+Capability details + revoke
+P1
+/admin
+Admin overview and revoke
+P1
+/payments
+x402 payment history
+P2
+/resources
+Protected resource catalog/config
+P2
+• 
+• 
+• 
+• 
+• 
+• 
+• 
+• 
+• 
+• 
+• 
+• 
+• 
+• 
+Veil — Architecture & Technical Design | Page 24 of 33
+
+---PAGE BREAK---
+/activity
+Request/event timeline
+P2
+/api/premium-
+data
+The actual x402-protected endpoint
+P0
+REMOVE ALL MOCK/FAKE ARCHITECTURE BEFORE JUDGING
+The production/demo build must not use: Math.random credential IDs, fake transaction IDs, simulated
+payments, localStorage as authentication, hardcoded LLM responses, or fake 402 responses. Wherever the
+current prototype still contains a simulation, this document's authors must identify exactly where it transitions to
+real infrastructure before the demo is treated as final. 
+Veil — Architecture & Technical Design | Page 25 of 33
+
+---PAGE BREAK---
+22 Veil vs. a Basic x402 API
+This comparison is the core hackathon positioning argument: Veil is not "an API with payments," it is
+an economic authorization layer built on top of payment.
+Basic x402 API
+Veil
+Agent pays for API
+Agent pays for API
+402 payment
+402 payment
+Receives data
+Receives data
+Usually broad/static credentials
+Temporary, purpose-built capability
+Payment and authorization treated as the
+same event
+Payment atomically triggers capability issuance — related but distinct
+steps
+No granular scope
+Resource + action scope
+No mandatory expiry
+Round-based expiry, enforced on-chain
+No mandatory quota
+Quota, enforced with periodic reconciliation
+No capability holder proof
+Disposable-address holder binding
+No nonce proof
+Fresh nonce + signature per access attempt
+No capability revocation model
+Single authoritative on-chain revocation
+Category: a simple paid API
+Category: an economic authorization layer
+Veil — Architecture & Technical Design | Page 26 of 33
+
+---PAGE BREAK---
+23 MVP Scope & Stretch Goals
+Must-have / MVP
+One x402-protected resource
+Algorand TestNet, real ALGO settlement
+Real HTTP 402 (no simulated payments)
+Atomic payment + capability issuance
+Algorand app + box-storage capability record
+Disposable capability address, issuer-funded
+Nonce + signature proof of possession
+Resource/action scope enforcement
+Expiry (round-based)
+Quota (cached, resource-server enforced)
+Revocation, checked against authoritative on-chain state
+200 on a valid capability, 403 with a reason on invalid/expired/revoked/quota-exhausted
+AI agent completing the full workflow autonomously
+Public deployment with a working, judge-runnable demo
+Stretch
+Default-frozen badge ASA (visual "watch it vanish on revoke" moment)
+A second capability type ( WRITE ) and a second agent, to demonstrate scope enforcement beyond binary
+access
+Multiple resources, multiple agents
+Advanced quota reconciliation and per-request on-chain decrementing
+Stronger privacy mechanisms (sender-side unlinkability)
+Non-custodial, client-side disposable key generation
+More sophisticated admin analytics
+EXPLICITLY AVOIDED, ON PURPOSE
+Per-request on-chain quota transactions, full production wallet/key management, elaborate frontend animation,
+a native mobile app, and a multi-provider payment marketplace are all out of scope for this MVP. None of them
+are required to demonstrate the core thesis, and each adds real implementation risk against a fixed hackathon
+deadline. 
+• 
+• 
+• 
+• 
+• 
+• 
+• 
+• 
+• 
+• 
+• 
+• 
+• 
+• 
+• 
+• 
+• 
+• 
+• 
+• 
+• 
+Veil — Architecture & Technical Design | Page 27 of 33
+
+---PAGE BREAK---
+24 Implementation Roadmap
+Module sequence
+Module
+Focus
+Key deliverables
+1
+Algorand + x402 foundation
+Funded TestNet account, Algorand SDK/AlgoKit tooling, x402 packages
+installed, official Algorand x402 sample proven end-to-end (402 →
+payment → 200)
+2
+Real protected resource
+/api/premium-data returning a genuine HTTP 402, integrated with
+x402, settling real ALGO on TestNet
+3
+Capability contract
+Algorand app with box state, capability schema, create/read/revoke
+methods, consumed-payment protection
+4
+Atomic issuance
+Payment + capability creation + optional badge, bundled into one atomic
+transaction group; disposable address generation and issuer funding
+5
+Capability verification
+Nonce issuance, signature verification, holder/resource/action/expiry/
+quota/revocation checks in the resource server
+6
+AI agent
+LLM integration, tool definitions from Section 7, resource discovery,
+payment orchestration, capability acquisition and use
+7
+Application integration
+Frontend, admin, activity, payments, resources — all wired to real
+blockchain and backend data
+8
+Database + audit
+Supabase schema, logging, audit trail, private issuer-side payer
+mapping
+9
+Deployment
+Vercel (or equivalent) for the web app, backend service deployment,
+Algorand TestNet configuration, secrets management, public demo URL
+10
+End-to-end demo
+User request → discover → 402 → pay → atomic issuance → capability
+shown → nonce/signature → 200 → admin revoke → retry → 403
+Calendar mapping (3-person team, one-week sprint)
+Day
+Focus
+Mon 17 Aug
+Architecture freeze, environment setup, repo/skeleton, Supabase schema, basic responsive layout
+— Module 1 start.
+Tue 18 Aug
+/api/premium-data live with a real 402; Algorand x402 TestNet payment confirmed; first plain
+client pays and receives data — Modules 1–2 complete.
+Wed 19 Aug
+Capability contract implemented and deployed to TestNet; create/read/revoke proven via an
+integration script without the UI — Module 3 complete.
+Thu 20 Aug
+LLM connected with controlled tools; agent completes discover → 402 → pay → capability → retry
+end-to-end in the terminal — Modules 4–6 complete.
+Fri 21 Aug
+UI polish and feature freeze: capability cards, payment timeline, admin revoke, activity log, public
+deployment — Modules 7–9 complete.
+Veil — Architecture & Technical Design | Page 28 of 33
+
+---PAGE BREAK---
+Sat 22 Aug
+No new features. Clean-install test, cross-browser check, pitch rehearsal, backup recording, fallback
+plan for TestNet/facilitator downtime.
+Sun 23 Aug
+Presentation day — run the exact tested flow; no architecture or feature changes on demo day.
+CALENDAR FLAG
+This 7-day sprint plan is dated Monday 17 Aug through Sunday 23 Aug. If this document is being read on or
+after the "Sat 22 Aug — freeze" milestone, treat every date above as a schedule reference for sequencing, not a
+live countdown — confirm against the team's actual current build status before relying on it as a plan. 
+Work split (reference team of three)
+Owner
+Main responsibility
+Deliverables
+Agent / x402 engineer
+AI agent + payment flow
+LLM integration, tool definitions, 402 handling, x402 client,
+agent retry logic, chat UI integration
+Algorand / contract
+engineer
+Blockchain capability layer
+Algorand TypeScript contract, box schema, create/read/
+revoke, TestNet deployment, transaction verification
+Web / resource-server
+engineer
+Website + protected API
+Next.js UI, dashboard, capability cards, admin revoke UI, /
+api/premium-data , database, integration
+Veil — Architecture & Technical Design | Page 29 of 33
+
+---PAGE BREAK---
+25 Deployment Architecture
+Layer
+Technology
+Why
+Runtime
+Node.js
+One language/runtime across agent, API, and
+blockchain integration
+Language
+TypeScript
+Type safety; pairs naturally with Algorand's
+TypeScript tooling
+Frontend
+Next.js + React + Tailwind CSS
+Responsive mobile/desktop web app
+Backend
+Next.js API routes or Hono/Express
+Fast API development, straightforward x402
+integration
+x402
+@x402/core , @x402/avm , 
+@x402/fetch
+Official Algorand-compatible x402 path
+Blockchain
+AlgoKit + Algorand TypeScript / AlgoKit
+Utils
+Smart contracts, box/app management,
+transactions, testing
+Database
+Supabase (PostgreSQL)
+Simple hosted relational store for application-level
+records
+AI
+A pre-built LLM API (e.g. Claude, GPT,
+or similar)
+Reasoning layer only — no model training required
+Testing
+Vitest + integration scripts
+Fast tests for capability and API flow
+Deployment
+Vercel (frontend) + hosted Node service
+(backend)
+Simple, public, demo-ready URLs
+Suggested monorepo layout:
+veil/
+├── apps/
+│   ├── web/            # Next.js responsive website
+│   └── agent/          # Node.js autonomous agent runner
+├── packages/
+│   ├── x402-client/    # x402 client/payment helpers
+│   ├── capability/     # capability validation/business logic
+│   ├── algorand/       # Algorand client + typed app client
+│   └── shared/         # shared types/constants
+├── contracts/
+│   └── veil-capability/  # Algorand TypeScript smart contract
+├── database/
+│   └── schema/         # SQL migrations
+├── scripts/
+│   ├── seed-demo.ts
+│   └── test-e2e.ts
+└── .env.example
+If the team is faster with a single Next.js project, collapse apps/ and packages/ into app/ + lib/ + contracts/ +
+scripts/ . Prioritize speed and clarity over structural completeness.
+Veil — Architecture & Technical Design | Page 30 of 33
+
+---PAGE BREAK---
+26 Demo Script
+Three visible panes: the AI agent on one side, the Veil dashboard in the center, and an Algorand
+explorer (Lora or Pera Explorer, TestNet) on the other — pointed at the capability app's box storage
+and the treasury account.
+Time
+Beat
+0:00–0:30
+Problem. AI agents increasingly need to buy access to APIs and data, but permanent API keys grant
+too much long-lived, unscoped access.
+0:30–1:00
+Request. User asks the agent to complete a task requiring a paid resource (e.g., "find the cheapest
+supplier" / "get premium market data").
+1:00–1:45
+402 → payment. Agent calls the endpoint, receives 402 , reads the price, and pays autonomously
+through x402.
+1:45–2:30
+Algorand + capability. The atomic transaction group appears live in the explorer; the dashboard
+shows an active capability with resource, action, quota, and expiry.
+2:30–3:15
+Access. Agent signs the nonce, retries, gets 200 OK , and the LLM summarizes the returned data.
+3:15–4:00
+Security. Admin clicks REVOKE; the explorer updates live (badge clawed back or the box's revoked
+flag flips); the agent retries the identical request and gets 403 Forbidden — no restart, no fresh
+credential, no cuts.
+4:00–5:00
+Why it matters. Payment becomes authorization: temporary, scoped, quota-limited, and revocable
+— closing with the positioning line from Section 22.
+BONUS, TIME PERMITTING
+Run the same credential against a WRITE endpoint immediately after the successful READ access, and show
+the 403 from scope mismatch, against a second agent — this makes "least privilege, not just access/no-
+access" concrete in about ten seconds of screen time, without needing a second demo setup. 
+Veil — Architecture & Technical Design | Page 31 of 33
+
+---PAGE BREAK---
+27 Architecture Decisions & Tradeoffs
+Where the two source designs genuinely differed, this section names the decision explicitly rather than
+silently picking a side.
+Point of divergence
+Resolution taken
+ASA-per-grant as the
+primary capability
+mechanism
+Rejected as the source of truth. The capability record lives in box storage; the badge
+ASA is retained only as an optional, demo-friendly visual artifact and can be cut entirely
+under time pressure without weakening the security model.
+Who funds the disposable
+address
+Resolved in favor of the security review: the issuer funds each disposable address from
+its own reserve. Agent-funded disposable addresses were rejected because they defeat
+the privacy rationale by design.
+Where the payment-
+validation authority lives
+Resolved in favor of the security review: the consumed-payment check and capability
+write live inside the application call, checked atomically against the payment — not
+decided by an off-chain issuer service.
+Custodial key handoff for
+disposable addresses
+Kept as a named, explicit MVP scoping choice (Section 12), not treated as one of the
+"fake/mock" patterns to be eliminated (Section 21). The distinction: this is a disclosed
+simplification of key custody, not a simulated payment or a fabricated credential.
+Per-request on-chain quota
+decrement
+Deliberately cut from MVP scope in both source documents; kept cut here. Quota is
+checked-and-cached by the resource server with periodic reconciliation.
+Privacy claim strength
+Resolved toward the more conservative, honestly-scoped language from the security
+review: "reduces straightforward address correlation," never "anonymity" or
+"unlinkability" without qualification.
+Product framing
+Both source documents agree Veil is not "an API with x402 payments." This document
+keeps that framing central throughout, per Section 3.
+Veil — Architecture & Technical Design | Page 32 of 33
+
+---PAGE BREAK---
+28 Final Definition of Done
+The project is done for the hackathon when a judge can watch the following run, unattended, end to
+end:
+User states a goal requiring a paid resource
+→ Agent discovers the resource and calls it
+→ Server returns 402 Payment Required
+→ Agent pays autonomously through x402 on Algorand TestNet
+→ Payment settles and a capability is issued atomically
+→ Dashboard shows an active capability with resource, action, quota, and expiry
+→ Agent signs a nonce and retries → 200 OK, data returned and summarized
+→ Admin revokes the capability
+→ Agent retries the identical request → 403 Forbidden 
+If that flow runs reliably against real TestNet infrastructure — no simulated payments, no fabricated credential
+IDs, no localStorage-based authentication — the MVP is complete. Everything in the stretch list (Section 23) is
+optional polish layered on top of a working, honest core.
+Veil — Architecture & Technical Design. This document consolidates the original Veil product/agent architecture with the follow-up
+Algorand security review into one implementation-ready design, per the merge instructions supplied for this revision. 
+Veil — Architecture & Technical Design | Page 33 of 33
+
+---PAGE BREAK---

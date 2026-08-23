@@ -4,7 +4,7 @@ async function main() {
   const senderMnemonic = process.env.SENDER_MNEMONIC; // the account holding 20 USDC (AQ3AE4...)
   if (!senderMnemonic) throw new Error("Set SENDER_MNEMONIC to the mnemonic of the funded USDC account.");
 
-  const RECEIVER = "BOMJ2SOCYTXWSKXORAD4D3S2BYAKUBXFISECVCBWLYEZETWC4LSKEBYFFA"; // payer account
+ const RECEIVER = "6S23FVFSKHIPOKHB67CKQ4D6BX5GH3DXEZE2SDEZBPAYPNF2S2YMCHL4RM"; // payer account (derived from ALGORAND_AGENT_MNEMONIC in .env.local)// payer account
   const USDC_ASSET_ID = 10458941;
   const AMOUNT = 5_000_000; // 5 USDC, assuming 6 decimals — adjust if needed
 

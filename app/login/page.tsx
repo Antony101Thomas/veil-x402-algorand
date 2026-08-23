@@ -61,6 +61,9 @@ export default function LoginPage() {
       setError('Could not reach the server. Try again.')
       setLoading(false)
     }
+    const session = { handle: handle || (role === 'agent' ? 'agent-01' : 'provider-demo'), role }
+    document.cookie = `${SESSION_KEY}=${encodeURIComponent(JSON.stringify(session))}; path=/; max-age=86400; SameSite=Strict`
+    router.push(role === 'admin' ? '/admin' : '/agent')
   }
 
   return (
