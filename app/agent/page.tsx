@@ -207,19 +207,18 @@ export default function AgentDashboard() {
             </section>
 
             <section className="chat-panel">
-             // --- chat panel header: replace the broken status badge ---
-<div className="chat-panel__header">
-  <span className="agent-card__icon">◎</span>
-  <div>
-    <h2>Resource Agent</h2>
-    <div className={`badge badge--${busy ? 'warn' : 'muted'}`}>
-      Status: {busy ? 'Working…' : 'Idle'}
-    </div>
-  </div>
-  <button className="btn btn--ghost chat-panel__newchat" onClick={startNewChat}>
-    + New Chat
-  </button>
-</div>
+              <div className="chat-panel__header">
+                <span className="agent-card__icon">🤖</span>
+                <div>
+                  <h2>Resource Agent</h2>
+                  <div className={`badge badge--${busy ? 'warn' : 'muted'}`}>
+                    Status: {busy ? 'Working...' : 'Idle'}
+                  </div>
+                </div>
+                <button className="btn btn--ghost chat-panel__newchat" onClick={startNewChat}>
+                  + New Chat
+                </button>
+              </div>
 
               <div className="chat-panel__messages">
                 {chat.length === 0 ? (
