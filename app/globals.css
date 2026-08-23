@@ -1,16 +1,53 @@
-.btn--primary {
-  background: var(--accent, #ff0000);
-  color: #fff;
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap');
+
+:root {
+  --font-body: 'Roboto', system-ui, sans-serif;
 }
-.btn--primary:hover {
-  background: var(--accent-hover, #cc0000);
-  transform: translateY(-1px);
+
+/* Light — default YouTube look: white surface, near-black text, red accent */
+[data-theme='light'] {
+  --bg: #ffffff;
+  --surface: #f9f9f9;
+  --surface-raised: #ffffff;
+  --border: #e5e5e5;
+  --text: #0f0f0f;
+  --text-muted: #606060;
+  --accent: #ff0000;
+  --accent-hover: #cc0000;
+  --toggle-track: #e5e5e5;
+  --toggle-border: #d3d3d3;
+  --toggle-tick: #909090;
 }
-.btn--ghost {
-  background: transparent;
-  color: var(--text, #0f0f0f);
-  border: 1px solid var(--border, #e5e5e5);
+
+/* Dark — YouTube's own dark mode surfaces */
+[data-theme='dark'] {
+  --bg: #0f0f0f;
+  --surface: #212121;
+  --surface-raised: #272727;
+  --border: #3f3f3f;
+  --text: #f1f1f1;
+  --text-muted: #aaaaaa;
+  --accent: #ff0000;
+  --accent-hover: #ff4d4d;
+  --toggle-track: #3f3f3f;
+  --toggle-border: #4d4d4d;
+  --toggle-tick: #6b6b6b;
 }
-.btn--ghost:hover {
-  border-color: var(--accent, #ff0000);
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  transition: background 180ms ease, color 180ms ease;
+}
+
+a {
+  color: inherit;
 }

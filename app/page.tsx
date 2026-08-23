@@ -210,7 +210,7 @@ const TRANSCRIPT_LINE_DEFS = [
   { text: '{ asset: "ALGO", price: 0.214, change24h: "+4.8%" }', className: 'line line--muted' },
 ];
 
-function TranscriptPanel() {
+function useTranscriptTyping() {
   const { ref, visible } = useRevealOnScroll();
   const { lines: typed, done } = useTypewriterLines(
     TRANSCRIPT_LINE_DEFS.map((l) => l.text),
@@ -218,33 +218,7 @@ function TranscriptPanel() {
     visible
   );
 
-  return (
-    <div
-      ref={ref as React.RefObject<HTMLDivElement>}
-      className={`transcript-wrap reveal ${visible ? 'reveal--visible' : ''}`}
-      style={{ transitionDelay: '120ms' }}
-    >
-      <div className="transcript" role="group" aria-label="Veil request lifecycle">
-        <div className="transcript__bar">
-          <span className="dot dot--red" />
-          <span className="dot dot--amber" />
-          <span className="dot dot--green" />
-          <span className="transcript__title">agent → /api/premium-data</span>
-        </div>
-        <pre className="transcript__body">
-          <code>
-            {TRANSCRIPT_LINE_DEFS.map((def, i) => (
-              <span key={i}>
-                <span className={def.className}>{typed[i]}</span>
-                {i < TRANSCRIPT_LINE_DEFS.length - 1 ? '\n' : null}
-              </span>
-            ))}
-            {!done && <span className="caret" aria-hidden="true" />}
-          </code>
-        </pre>
-      </div>
-    </div>
-  );
+  return { ref, visible, typed, done };
 }
 
 export default function LandingPage() {
@@ -269,6 +243,10 @@ export default function LandingPage() {
   const typedPrefix = typedHeadline.slice(0, HERO_HEADLINE_PREFIX.length);
   const typedAccent = typedHeadline.slice(HERO_HEADLINE_PREFIX.length);
   const headlineDone = typedHeadline.length >= HERO_HEADLINE_PREFIX.length + HERO_HEADLINE_ACCENT.length;
+
+  // Transcript "generates" once it scrolls into view.
+  const { ref: transcriptRef, visible: transcriptVisible, typed: transcriptLines, done: transcriptDone } =
+    useTranscriptTyping();
 
   return (
     <main className="veil-landing">
@@ -298,7 +276,31 @@ export default function LandingPage() {
         </div>
 
         {/* Signature element: a live HTTP transcript that "generates" on scroll-into-view */}
-        <TranscriptPanel />
+        <div
+          ref={transcriptRef as React.RefObject<HTMLDivElement>}
+          className={`transcript-wrap reveal ${transcriptVisible ? 'reveal--visible' : ''}`}
+          style={{ transitionDelay: '120ms' }}
+        >
+          <div className="transcript" role="group" aria-label="Veil request lifecycle">
+            <div className="transcript__bar">
+              <span className="dot dot--red" />
+              <span className="dot dot--amber" />
+              <span className="dot dot--green" />
+              <span className="transcript__title">agent → /api/premium-data</span>
+            </div>
+            <pre className="transcript__body">
+              <code>
+                {TRANSCRIPT_LINE_DEFS.map((def, i) => (
+                  <span key={i}>
+                    <span className={def.className}>{transcriptLines[i]}</span>
+                    {i < TRANSCRIPT_LINE_DEFS.length - 1 ? '\n' : null}
+                  </span>
+                ))}
+                {!transcriptDone && <span className="caret" aria-hidden="true" />}
+              </code>
+            </pre>
+          </div>
+        </div>
       </section>
 
       {/* ---------- STATS ---------- */}
