@@ -29,11 +29,13 @@ export async function POST(req: NextRequest) {
   }
 
   // Always check first: does this handle already exist?
+  const lookupStart = Date.now()
   const { data: existing, error: lookupError } = await supabaseServer
     .from('users')
     .select('*')
     .ilike('handle', handle) // case-insensitive match
     .maybeSingle()
+  console.log(`[users] lookup took ${Date.now() - lookupStart}ms`)
 
   if (lookupError) {
     return NextResponse.json(

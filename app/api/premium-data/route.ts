@@ -19,7 +19,7 @@ const routeConfig = {
     price: "$0.05",
   },
   description: "Premium market data resource for demo purposes.",
-};
+} as const;
 
 async function handler(request: NextRequest) {
   return NextResponse.json({

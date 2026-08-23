@@ -22,12 +22,25 @@ type ChatMsg = {
   text: string
 }
 
+type ChatSession = {
+  id: number
+  title: string
+  messages: ChatMsg[]
+  savedAt: string
+}
+
 const RESOURCE = { id: 'place-order', label: 'Trading Session Authorization', price: 0.1 }
+
+// Purely for visual variety on the Resources page — not wired to anything real.
+const DUMMY_RESOURCES = [
+  { icon: '📊', name: 'Premium Market Data', endpoint: '/api/premium-data', price: 0.05 },
+  { icon: '📄', name: 'Company Report Access', endpoint: '/api/company-report', price: 0.25 },
+]
+
 const STARTING_BALANCE = 1.0
 
 const NAV: { key: View; label: string; icon: string }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: '⌂' },
-  { key: 'agent', label: 'AI Agent', icon: '◎' },
   { key: 'capabilities', label: 'Capabilities', icon: '⚿' },
   { key: 'payments', label: 'Payments', icon: '◈' },
   { key: 'resources', label: 'Resources', icon: '▤' },
@@ -57,6 +70,7 @@ export default function AgentDashboard() {
 
   const [log, setLog] = useState<LogEntry[]>([])
   const [chat, setChat] = useState<ChatMsg[]>([])
+  const [chatHistory, setChatHistory] = useState<ChatSession[]>([])
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -101,6 +115,23 @@ export default function AgentDashboard() {
 
   function pushChat(role: ChatMsg['role'], text: string) {
     setChat((prev) => [...prev, { id: Date.now() + Math.random(), role, text }])
+  }
+
+  function startNewChat() {
+    if (chat.length > 0) {
+      const firstUserMsg = chat.find((m) => m.role === 'user')?.text ?? 'New chat'
+      const title = firstUserMsg.length > 42 ? firstUserMsg.slice(0, 42) + '…' : firstUserMsg
+      setChatHistory((prev) => [
+        { id: Date.now(), title, messages: chat, savedAt: new Date().toLocaleString() },
+        ...prev,
+      ])
+    }
+    setChat([])
+  }
+
+  function loadChat(sessionToLoad: ChatSession) {
+    setChat(sessionToLoad.messages)
+    setView('dashboard')
   }
 
   function handleLogout() {
@@ -212,7 +243,6 @@ export default function AgentDashboard() {
     <div className="shell">
       {/* ---------- SIDEBAR ---------- */}
       <aside className="sidebar">
-        <div className="sidebar__brand">Veil</div>
         <nav className="sidebar__nav">
           {NAV.map((item) => (
             <button
@@ -225,6 +255,26 @@ export default function AgentDashboard() {
             </button>
           ))}
         </nav>
+
+        {view === 'dashboard' && (
+          <div className="sidebar__history">
+            <p className="sidebar__history-title">Previous Chats</p>
+            {chatHistory.length === 0 ? (
+              <p className="sidebar__history-empty">No previous chats yet.</p>
+            ) : (
+              <ul className="sidebar__history-list">
+                {chatHistory.map((s) => (
+                  <li key={s.id}>
+                    <button className="sidebar__history-item" onClick={() => loadChat(s)}>
+                      {s.title}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
         <button className="sidebar__logout" onClick={handleLogout}>
           Sign out
         </button>
@@ -246,48 +296,9 @@ export default function AgentDashboard() {
           </div>
         </header>
 
-        {(view === 'dashboard' || view === 'agent') && (
-          <>
-            <section className="card agent-card">
-              <div className="agent-card__head">
-                <span className="agent-card__icon">◎</span>
-                <div>
-                  <h2>Trading Agent</h2>
-                  <div className={`badge badge--${statusMeta[status].tone}`}>
-                    Status: {statusMeta[status].label}
-                  </div>
-                </div>
-              </div>
-
-              <div className="chat">
-                {chat.length === 0 ? (
-                  <p className="chat__empty">Ask your agent to trade — try “Buy 10 ALGO” or “Place a market order”.</p>
-                ) : (
-                  <div className="chat__log">
-                    {chat.map((m) => (
-                      <div key={m.id} className={`chat__msg chat__msg--${m.role}`}>
-                        {m.text}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div className="chat__input">
-                  <input
-                    type="text"
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                    placeholder="Ask your agent…"
-                    disabled={busy}
-                  />
-                  <button className="btn btn--primary" onClick={handleSend} disabled={busy || !draft.trim()}>
-                    Send ➤
-                  </button>
-                </div>
-              </div>
-            </section>
-
-            <section className="card">
+        {view === 'dashboard' && (
+          <div className="dashboard-layout">
+            <section className="card cap-card-top">
               <h2 className="card__title">Active Capabilities</h2>
               {!capExists ? (
                 <p className="chat__empty">No capabilities yet — ask your agent to place a trade to get one.</p>
@@ -329,7 +340,48 @@ export default function AgentDashboard() {
                 </div>
               )}
             </section>
-          </>
+
+            <section className="chat-panel">
+              <div className="chat-panel__header">
+                <span className="agent-card__icon">◎</span>
+                <div>
+                  <h2>Trading Agent</h2>
+                  <div className={`badge badge--${statusMeta[status].tone}`}>
+                    Status: {statusMeta[status].label}
+                  </div>
+                </div>
+                <button className="btn btn--ghost chat-panel__newchat" onClick={startNewChat}>
+                  + New Chat
+                </button>
+              </div>
+
+              <div className="chat-panel__messages">
+                {chat.length === 0 ? (
+                  <p className="chat__empty">Ask your agent to trade — try “Buy 10 ALGO” or “Place a market order”.</p>
+                ) : (
+                  chat.map((m) => (
+                    <div key={m.id} className={`chat__msg chat__msg--${m.role}`}>
+                      {m.text}
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="chat-panel__input">
+                <input
+                  type="text"
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                  placeholder="Ask your agent…"
+                  disabled={busy}
+                />
+                <button className="btn btn--primary" onClick={handleSend} disabled={busy || !draft.trim()}>
+                  Send ➤
+                </button>
+              </div>
+            </section>
+          </div>
         )}
 
         {view === 'capabilities' && (
@@ -419,6 +471,31 @@ export default function AgentDashboard() {
                 </div>
               </div>
             </div>
+
+            {DUMMY_RESOURCES.map((r) => (
+              <div className="provider provider--soon" key={r.endpoint}>
+                <div className="provider__banner provider__banner--soon">
+                  <span className="provider__banner-dot provider__banner-dot--soon" />
+                  COMING SOON
+                </div>
+
+                <div className="provider__head">
+                  <div className="provider__icon">{r.icon}</div>
+                  <div>
+                    <h3 className="provider__name">{r.name}</h3>
+                    <code className="provider__endpoint">{r.endpoint}</code>
+                  </div>
+                  <div className="provider__price">
+                    <span className="provider__price-num">{r.price}</span>
+                    <span className="provider__price-unit">ALGO</span>
+                  </div>
+                </div>
+
+                <div className="provider__actions">
+                  <span className="pill pill--on">✓ READ</span>
+                </div>
+              </div>
+            ))}
           </section>
         )}
 
@@ -570,7 +647,7 @@ export default function AgentDashboard() {
         .shell {
           display: grid;
           grid-template-columns: 220px 1fr;
-          min-height: calc(100vh - 56px);
+          height: calc(100vh - 56px);
         }
         @media (max-width: 800px) {
           .shell {
@@ -588,18 +665,14 @@ export default function AgentDashboard() {
           padding: 24px 14px;
           display: flex;
           flex-direction: column;
-          gap: 24px;
-        }
-        .sidebar__brand {
-          font-size: 1.1rem;
-          font-weight: 700;
-          padding: 0 10px;
+          gap: 20px;
+          overflow: hidden;
         }
         .sidebar__nav {
           display: flex;
           flex-direction: column;
           gap: 2px;
-          flex: 1;
+          flex-shrink: 0;
         }
         .sidebar__item {
           display: flex;
@@ -628,7 +701,57 @@ export default function AgentDashboard() {
           width: 16px;
           text-align: center;
         }
+        .sidebar__history {
+          flex: 1;
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
+          border-top: 1px solid var(--border);
+          padding-top: 14px;
+        }
+        .sidebar__history-title {
+          font-size: 0.72rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+          color: var(--text-muted);
+          margin: 0 10px 8px;
+        }
+        .sidebar__history-empty {
+          font-size: 0.8rem;
+          color: var(--text-muted);
+          margin: 0 10px;
+        }
+        .sidebar__history-list {
+          list-style: none;
+          margin: 0;
+          padding: 0;
+          overflow-y: auto;
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+        .sidebar__history-item {
+          width: 100%;
+          text-align: left;
+          background: transparent;
+          border: none;
+          border-radius: 8px;
+          padding: 8px 10px;
+          font-size: 0.82rem;
+          color: var(--text-muted);
+          cursor: pointer;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .sidebar__history-item:hover {
+          background: var(--surface);
+          color: var(--text);
+        }
         .sidebar__logout {
+          flex-shrink: 0;
+          margin-top: auto;
           border: 1px solid var(--border);
           background: transparent;
           color: var(--text-muted);
@@ -644,11 +767,83 @@ export default function AgentDashboard() {
 
         /* ---------- Main ---------- */
         .main {
-          padding: 32px 28px 64px;
+          height: 100%;
+          overflow-y: auto;
+          padding: 32px 28px 32px;
           display: flex;
           flex-direction: column;
           gap: 20px;
         }
+        .dashboard-layout {
+          display: flex;
+          flex-direction: column;
+          flex: 1;
+          min-height: 500px;
+          gap: 20px;
+        }
+        .cap-card-top {
+          flex-shrink: 0;
+          max-height: 260px;
+          overflow-y: auto;
+        }
+
+        /* ---------- Chat panel (ChatGPT-style) ---------- */
+        .chat-panel {
+          flex: 1;
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
+          border: 1px solid var(--border);
+          border-radius: 14px;
+          background: var(--surface-raised, var(--surface));
+          overflow: hidden;
+        }
+        .chat-panel__header {
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 16px 20px;
+          border-bottom: 1px solid var(--border);
+        }
+        .chat-panel__header h2 {
+          margin: 0 0 4px;
+          font-size: 1rem;
+          font-weight: 600;
+        }
+        .chat-panel__newchat {
+          margin-left: auto;
+        }
+        .chat-panel__messages {
+          flex: 1;
+          min-height: 0;
+          overflow-y: auto;
+          padding: 20px;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .chat-panel__input {
+          flex-shrink: 0;
+          display: flex;
+          gap: 8px;
+          padding: 16px 20px;
+          border-top: 1px solid var(--border);
+        }
+        .chat-panel__input input {
+          flex: 1;
+          font-size: 0.9rem;
+          padding: 10px 12px;
+          border-radius: 8px;
+          border: 1px solid var(--border);
+          background: var(--surface);
+          color: var(--text);
+        }
+        .chat-panel__input input:focus-visible {
+          outline: 2px solid var(--accent);
+          outline-offset: 1px;
+        }
+
         .topbar {
           display: flex;
           justify-content: space-between;
@@ -879,6 +1074,12 @@ export default function AgentDashboard() {
           overflow: hidden;
           background: var(--surface);
         }
+        .provider + .provider {
+          margin-top: 16px;
+        }
+        .provider--soon {
+          opacity: 0.85;
+        }
         .provider__banner {
           display: flex;
           align-items: center;
@@ -890,12 +1091,20 @@ export default function AgentDashboard() {
           font-weight: 700;
           letter-spacing: 0.06em;
         }
+        .provider__banner--soon {
+          background: color-mix(in srgb, var(--text-muted) 14%, transparent);
+          color: var(--text-muted);
+        }
         .provider__banner-dot {
           width: 7px;
           height: 7px;
           border-radius: 50%;
           background: #3ddc84;
           box-shadow: 0 0 0 3px rgba(61, 220, 132, 0.25);
+        }
+        .provider__banner-dot--soon {
+          background: var(--text-muted);
+          box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-muted) 25%, transparent);
         }
         .provider__head {
           display: flex;

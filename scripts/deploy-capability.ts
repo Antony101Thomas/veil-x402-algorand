@@ -29,12 +29,12 @@ async function main() {
   // Register the creator/admin account as a signer from its mnemonic.
   const creatorAccount = algosdk.mnemonicToSecretKey(mnemonic)
   const creator = algorand.account.fromMnemonic(mnemonic)
-  console.log(`Deploying as creator/admin: ${creator.addr}`)
+  console.log(`Deploying as creator/admin: ${creator.addr.toString()}`)
 
   // Build the factory. No appSpec needed - it's embedded in the generated client.
   const factory = new VeilCapabilityFactory({
     algorand,
-    defaultSender: creator.addr,
+    defaultSender: creator.addr.toString(),
   })
 
   console.log('Deploying VeilCapability to TestNet (idempotent create-or-update)...')
@@ -57,7 +57,7 @@ async function main() {
   // if this is a fresh deploy (idempotent - safe to run every time).
   console.log('Ensuring app account is funded for box storage (0.5 ALGO buffer)...')
   await algorand.send.payment({
-    sender: creator.addr,
+    sender: creator.addr.toString(),
     receiver: appClient.appAddress,
     amount: (500_000).microAlgo(),
   })
@@ -65,7 +65,7 @@ async function main() {
   // ---- Smoke test: create -> get -> isValid(true) -> revoke -> isValid(false) ----
 
   const credentialId = `CRED-${Date.now()}`
-  const holder = creator.addr // for the smoke test, admin and holder are the same account
+  const holder = creator.addr.toString() // for the smoke test, admin and holder are the same account
 
   console.log(`\nSmoke test starting. credentialId = ${credentialId}`)
 
@@ -75,8 +75,8 @@ async function main() {
       credentialId,
       resourceId: 'premium-data',
       action: 'READ',
-      quota: 5n,
-      expiryRound: BigInt((await algorand.client.algod.status().do()).lastRound) + 10_000n,
+      quota: BigInt(5),
+      expiryRound: BigInt((await algorand.client.algod.status().do()).lastRound) + BigInt(10000),
       holder,
     },
   })

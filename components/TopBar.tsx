@@ -5,10 +5,14 @@ import { ThemeToggle } from './ThemeToggle'
 export function TopBar() {
   return (
     <header className="topbar">
-      <span className="topbar__brand">
+      <button
+        type="button"
+        className="topbar__brand"
+        onClick={() => window.location.reload()}
+      >
         <span className="topbar__play" aria-hidden="true" />
         Veil
-      </span>
+      </button>
       <ThemeToggle />
 
       <style jsx>{`
@@ -28,6 +32,15 @@ export function TopBar() {
           font-weight: 700;
           font-size: 18px;
           letter-spacing: -0.01em;
+          color: var(--text);
+          background: none;
+          border: none;
+          padding: 0;
+          cursor: pointer;
+          font-family: inherit;
+        }
+        .topbar__brand:hover {
+          opacity: 0.8;
         }
         .topbar__play {
           width: 0;
