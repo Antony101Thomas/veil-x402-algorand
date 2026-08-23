@@ -7,7 +7,7 @@ import { dashboardPath, writeSession, type SessionRole } from '@/lib/session'
 type Role = SessionRole
 type Mode = 'signin' | 'signup'
 
-export default function LoginPage() {
+function LoginForm()  {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [mode, setMode] = useState<Mode>(

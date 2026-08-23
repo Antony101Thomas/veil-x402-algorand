@@ -6,6 +6,21 @@ import { clearSession, dashboardPath, readSession, type Session } from '@/lib/se
 
 type View = 'dashboard' | 'agent' | 'capabilities' | 'payments' | 'resources' | 'activity'
 
+// --- add near the top, with the other type declarations ---
+type ChatSession = {
+  id: number
+  title: string
+  messages: ChatMsg[]
+  savedAt: string
+}
+
+// --- DELETE this entirely (undefined array, dummy "coming soon" providers) ---
+// {DUMMY_RESOURCES.map((r) => (
+//   <div className="provider provider--soon" key={r.endpoint}>
+//     ...
+//   </div>
+// ))}
+
 type LogEntry = {
   id: number
   time: string
@@ -194,18 +209,19 @@ export default function AgentDashboard() {
             </section>
 
             <section className="chat-panel">
-              <div className="chat-panel__header">
-                <span className="agent-card__icon">◎</span>
-                <div>
-                  <h2>Trading Agent</h2>
-                  <div className={`badge badge--${statusMeta[status].tone}`}>
-                    Status: {statusMeta[status].label}
-                  </div>
-                </div>
-                <button className="btn btn--ghost chat-panel__newchat" onClick={startNewChat}>
-                  + New Chat
-                </button>
-              </div>
+             // --- chat panel header: replace the broken status badge ---
+<div className="chat-panel__header">
+  <span className="agent-card__icon">◎</span>
+  <div>
+    <h2>Resource Agent</h2>
+    <div className={`badge badge--${busy ? 'warn' : 'muted'}`}>
+      Status: {busy ? 'Working…' : 'Idle'}
+    </div>
+  </div>
+  <button className="btn btn--ghost chat-panel__newchat" onClick={startNewChat}>
+    + New Chat
+  </button>
+</div>
 
               <div className="chat-panel__messages">
                 {chat.length === 0 ? (
@@ -305,30 +321,6 @@ export default function AgentDashboard() {
               </div>
             </div>
 
-            {DUMMY_RESOURCES.map((r) => (
-              <div className="provider provider--soon" key={r.endpoint}>
-                <div className="provider__banner provider__banner--soon">
-                  <span className="provider__banner-dot provider__banner-dot--soon" />
-                  COMING SOON
-                </div>
-
-                <div className="provider__head">
-                  <div className="provider__icon">{r.icon}</div>
-                  <div>
-                    <h3 className="provider__name">{r.name}</h3>
-                    <code className="provider__endpoint">{r.endpoint}</code>
-                  </div>
-                  <div className="provider__price">
-                    <span className="provider__price-num">{r.price}</span>
-                    <span className="provider__price-unit">ALGO</span>
-                  </div>
-                </div>
-
-                <div className="provider__actions">
-                  <span className="pill pill--on">✓ READ</span>
-                </div>
-              </div>
-            ))}
           </section>
         )}
 
