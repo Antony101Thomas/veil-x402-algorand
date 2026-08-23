@@ -173,13 +173,10 @@ export default function LandingPage() {
             capability — not a long-lived API key.
           </p>
           <div className="hero__cta">
-            <a className="btn btn--primary" href="/agent">
-              View agent dashboard
-            </a>
             <a className="btn btn--ghost" href="/login">
               Sign in
             </a>
-            <a className="btn btn--ghost" href="/login?mode=signup">
+            <a className="btn btn--primary" href="/login?mode=signup">
               Sign up
             </a>
           </div>
