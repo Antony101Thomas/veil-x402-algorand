@@ -12,7 +12,7 @@
  * the resource server, dashboard, and orchestrator all need to point at
  * this same app id.
  */
-
+import "../lib/load-env";
 import { AlgorandClient } from '@algorandfoundation/algokit-utils'
 import algosdk from 'algosdk'
 import { VeilCapabilityFactory } from '../contracts/veil_capability/client'

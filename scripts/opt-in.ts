@@ -1,9 +1,10 @@
-﻿import algosdk from "algosdk";
+﻿import "../lib/load-env";
+import algosdk from "algosdk";
 
 async function main() {
-  const mnemonic = process.env.ALGORAND_AGENT_MNEMONIC;
+  const mnemonic = process.env.ALGORAND_PAYER_MNEMONIC;
   if (!mnemonic) {
-    throw new Error("Set ALGORAND_AGENT_MNEMONIC in your environment first.");
+    throw new Error("Set ALGORAND_PAYER_MNEMONIC in your environment first.");
   }
 
   const account = algosdk.mnemonicToSecretKey(mnemonic);

@@ -1,3 +1,4 @@
+import "../lib/load-env";
 import algosdk from "algosdk";
 
 async function main() {
