@@ -86,8 +86,8 @@ function stripReasoning(raw: string): string {
 function buildClassifyPrompt(context: string, lastMsg: string): string {
   return (
     'Classify this message as FETCH or ANSWER. ' +
-    'FETCH = user wants live market data, prices, or to retrieve a resource. ' +
-    'ANSWER = everything else (questions, confirmations, greetings, follow-ups).\n' +
+    'FETCH = user is specifically asking for Veil premium data, ALGO prices, or crypto market data. ' +
+    'ANSWER = everything else (general questions, flights, other stocks, Veil platform info, greetings).\n' +
     (context ? `Context: ${context}\n` : '') +
     `Message: "${lastMsg}"\n` +
     'Reply with ONE word only: FETCH or ANSWER.'
@@ -99,7 +99,8 @@ function buildAnswerPrompt(lastMsg: string): string {
   return (
     'You are the AI agent for Veil, an economic capability layer. ' +
     'Veil converts x402 payments on Algorand TestNet into scoped, expiring, revocable on-chain capabilities. ' +
-    'Instead of permanent API keys, agents receive time-limited credentials (5 requests, 30-min expiry) that can be instantly revoked. ' +
+    'You ONLY have access to one premium API: ALGO market data. ' +
+    'If the user asks for other data (like flights, stocks, weather), politely decline and offer the ALGO market data instead. ' +
     'Dashboard sections: Active Capabilities, Payments, Resources, Activity. ' +
     'Give a concise, plain-language answer. Do not show reasoning steps or headers.\n\n' +
     `User: ${lastMsg}\nAgent:`
