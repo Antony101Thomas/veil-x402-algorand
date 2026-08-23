@@ -2,6 +2,20 @@
 
 :root {
   --font-body: 'Roboto', system-ui, sans-serif;
+
+  /* Base defaults (dark) — always defined, even before/without a data-theme
+     attribute landing on <html>. The [data-theme] blocks below override these. */
+  --bg: #0f0f0f;
+  --surface: #212121;
+  --surface-raised: #272727;
+  --border: #3f3f3f;
+  --text: #f1f1f1;
+  --text-muted: #aaaaaa;
+  --accent: #ff0000;
+  --accent-hover: #ff4d4d;
+  --toggle-track: #3f3f3f;
+  --toggle-border: #4d4d4d;
+  --toggle-tick: #6b6b6b;
 }
 
 /* Light — default YouTube look: white surface, near-black text, red accent */
@@ -19,7 +33,7 @@
   --toggle-tick: #909090;
 }
 
-/* Dark — YouTube's own dark mode surfaces */
+/* Dark — YouTube's own dark mode surfaces (explicit, mirrors the :root defaults) */
 [data-theme='dark'] {
   --bg: #0f0f0f;
   --surface: #212121;
