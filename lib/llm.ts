@@ -24,7 +24,7 @@ function getBaseUrl() {
 
 function getDefaultModel() {
   const key = process.env.XAI_API_KEY || '';
-  if (key.startsWith('gsk_')) return 'llama-3.1-8b-instant'; // higher free-tier TPM than groq/compound
+  if (key.startsWith('gsk_')) return 'llama-3.3-70b-versatile'; // highly available groq model
   return 'grok-3-mini';
 }
 
