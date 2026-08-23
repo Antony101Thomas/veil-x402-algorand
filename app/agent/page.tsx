@@ -108,31 +108,48 @@ export default function AgentDashboard() {
     const message = draft.trim()
     if (!message || busy) return
     setDraft('')
-    pushChat('user', message)
+
+    // Build updated history including the new user message
+    const updatedChat: ChatMsg[] = [...chat, { id: Date.now() + Math.random(), role: 'user', text: message }]
+    setChat(updatedChat)
     setBusy(true)
+    pushLog(`POST /api/chat — "${message.slice(0, 60)}${message.length > 60 ? '…' : ''}"`, 'muted')
 
     try {
-      pushLog('Starting agent orchestrator flow...', 'muted')
-      const res = await fetch('/api/agent/run', { method: 'POST' })
-      const data = await res.json()
-      
-      const tone: LogEntry['tone'] =
-        res.status === 200 ? 'ok' : res.status === 402 ? 'warn' : 'err'
-      
-      pushLog(`Orchestrator finished with HTTP ${res.status}`, tone)
+      // Convert chat history to the format /api/chat expects
+      const messages = updatedChat.map((m) => ({
+        role: m.role === 'agent' ? 'assistant' : 'user' as 'user' | 'assistant',
+        content: m.text,
+      }))
 
-      if (res.status === 402) {
-        pushChat('agent', 'Payment failed or resource still returned 402 after payment attempt.')
-      } else if (res.status === 403) {
-        pushChat('agent', 'Access denied. The capability might be revoked or expired.')
-      } else if (res.status === 200) {
-        pushChat('agent', `Success! ${data.summary || JSON.stringify(data.data)}`)
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages }),
+      })
+
+      const json = await res.json()
+
+      // Log the outcome
+      if (json.resourceFetched) {
+        pushLog(`x402 payment + fetch /api/${json.resourceFetched} → 200`, 'ok')
+      } else if (json.httpStatus) {
+        const tone: LogEntry['tone'] = json.httpStatus === 402 ? 'warn' : 'err'
+        pushLog(`x402 fetch → HTTP ${json.httpStatus}`, tone)
+      } else if (!res.ok) {
+        pushLog(`POST /api/chat → ${res.status}`, 'err')
       } else {
-        pushChat('agent', `Agent error: ${data.error || 'Unknown failure'}`)
+        pushLog(`POST /api/chat → 200 (direct answer)`, 'ok')
       }
-    } catch (err: any) {
-      pushLog(`Orchestrator call failed: ${err.message}`, 'err')
-      pushChat('agent', `Could not reach the agent orchestrator.`)
+
+      const reply: string =
+        json.reply ??
+        (json.error ? `Error: ${json.error}` : 'No response from agent.')
+
+      pushChat('agent', reply)
+    } catch {
+      pushLog('POST /api/chat failed (network error)', 'err')
+      pushChat('agent', 'Could not reach the agent. Check that the dev server is running.')
     }
 
     setBusy(false)
