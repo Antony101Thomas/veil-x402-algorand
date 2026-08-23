@@ -143,7 +143,7 @@ export async function chatWithIntent(
 ): Promise<ChatIntentResult> {
   const groq = getClient();
   const key = process.env.XAI_API_KEY || '';
-  const model = key.startsWith('gsk_') ? 'llama3-8b-8192' : (process.env.XAI_MODEL || 'grok-3-mini');
+  const model = key.startsWith('gsk_') ? 'llama-3.3-70b-versatile' : (process.env.XAI_MODEL || 'grok-3-mini');
 
   const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user')?.content ?? '';
 
@@ -199,7 +199,7 @@ export async function summarizeData(
 ): Promise<string> {
   const groq = getClient();
   const key = process.env.XAI_API_KEY || '';
-  const model = key.startsWith('gsk_') ? 'llama3-8b-8192' : (process.env.XAI_MODEL || 'grok-3-mini');
+  const model = key.startsWith('gsk_') ? 'llama-3.3-70b-versatile' : (process.env.XAI_MODEL || 'grok-3-mini');
 
   const dataStr = JSON.stringify(data);
   const response = await groq.chat.completions.create({
@@ -222,7 +222,7 @@ export async function summarizeData(
 export async function callModel(prompt: string): Promise<string> {
   const groq = getClient();
   const key = process.env.XAI_API_KEY || '';
-  const model = key.startsWith('gsk_') ? 'llama3-8b-8192' : (process.env.XAI_MODEL || 'grok-3-mini');
+  const model = key.startsWith('gsk_') ? 'llama-3.3-70b-versatile' : (process.env.XAI_MODEL || 'grok-3-mini');
 
   const completion = await groq.chat.completions.create({
     model,
