@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { chatWithIntent, summarizeData, type ChatMessage } from '@/lib/llm';
-import { discover_resource, request_resource_with_payment } from '@/agent/orchestrator';
+import { discover_resource, request_resource_with_payment, obtain_capability, access_with_capability } from '@/agent/orchestrator';
 
 /**
  * POST /api/chat
@@ -13,8 +13,10 @@ import { discover_resource, request_resource_with_payment } from '@/agent/orches
  *  2b. If LLM wants to fetch a resource →
  *        a. Run discover_resource() to get endpoint.
  *        b. Run request_resource_with_payment() → x402 Algorand payment + fetch.
- *        c. On 200: ask the LLM to summarize the data → return { reply, resourceFetched, data }.
- *        d. On 402/403/error: return error message in { reply, error }.
+ *        c. Extract the capability from the response using obtain_capability().
+ *        d. Verify the capability works using access_with_capability().
+ *        e. On 200: ask the LLM to summarize the data → return { reply, resourceFetched, data }.
+ *        f. On 402/403/error: return error message in { reply, error }.
  */
 export async function POST(req: NextRequest) {
   let messages: ChatMessage[];
@@ -80,6 +82,22 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // ── Obtain and use capability (prove it works without paying again) ──
+    const capInfo = await obtain_capability(paymentResult);
+    if (!capInfo) {
+       console.warn('Payment succeeded but no capability was returned by the resource server.');
+    } else {
+       // Access with the new capability
+       const accessResult = await access_with_capability(resource, capInfo.credentialId, capInfo.disposablePrivateKeyBase64);
+       if (accessResult.status !== 200) {
+          console.error(`Capability access failed: ${accessResult.status}`, accessResult.body);
+          // If the capability test fails, we still have the original payment data we can summarize, but we should log it.
+       } else {
+          // Use the data retrieved via the capability!
+          paymentResult.body = accessResult.body;
+       }
+    }
+
     // 200 — summarize the data with the LLM
     const summary = await summarizeData(paymentResult.body, messages);
 
@@ -87,6 +105,7 @@ export async function POST(req: NextRequest) {
       reply: summary,
       resourceFetched: resource.resourceId,
       data: paymentResult.body,
+      capability: capInfo ? { credentialId: capInfo.credentialId } : undefined
     });
 
   } catch (err) {
