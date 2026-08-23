@@ -2,10 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { clearSession, dashboardPath, readSession, type Session } from '@/lib/session'
 
-const SESSION_KEY = 'veil-session'
-
-type Session = { handle: string; role: 'agent' | 'admin' }
 type CapStatus = 'active' | 'revoked' | 'expired'
 
 type Capability = {
@@ -21,95 +19,26 @@ type Capability = {
   payment: number
 }
 
-function randHex(len: number) {
-  return Array.from({ length: len }, () => Math.floor(Math.random() * 16).toString(16)).join('').toUpperCase()
-}
-
-const SEED_CAPS: Capability[] = [
-  {
-    id: '1',
-    credentialId: 'CRED-' + randHex(5),
-    agentHandle: 'agent-01',
-    resource: 'place-order',
-    action: 'WRITE',
-    quotaUsed: 2,
-    quotaTotal: 5,
-    expiresIn: 1120,
-    status: 'active',
-    payment: 0.1,
-  },
-  {
-    id: '2',
-    credentialId: 'CRED-' + randHex(5),
-    agentHandle: 'agent-07',
-    resource: 'place-order',
-    action: 'WRITE',
-    quotaUsed: 5,
-    quotaTotal: 5,
-    expiresIn: 0,
-    status: 'expired',
-    payment: 0.1,
-  },
-  {
-    id: '3',
-    credentialId: 'CRED-' + randHex(5),
-    agentHandle: 'agent-12',
-    resource: 'place-order',
-    action: 'WRITE',
-    quotaUsed: 1,
-    quotaTotal: 5,
-    expiresIn: 1750,
-    status: 'active',
-    payment: 0.1,
-  },
-]
-
 export default function AdminDashboard() {
   const router = useRouter()
   const [session, setSession] = useState<Session | null>(null)
-  const [caps, setCaps] = useState<Capability[]>(SEED_CAPS)
-  const [toast, setToast] = useState<string | null>(null)
+  const [caps] = useState<Capability[]>([])
 
   useEffect(() => {
-    const raw = localStorage.getItem(SESSION_KEY)
-    if (!raw) {
+    const parsed = readSession()
+    if (!parsed) {
       router.replace('/login')
       return
     }
-    try {
-      const parsed = JSON.parse(raw) as Session
-      if (parsed.role !== 'admin') {
-        router.replace(parsed.role === 'agent' ? '/agent' : '/login')
-        return
-      }
-      setSession(parsed)
-    } catch {
-      router.replace('/login')
+    if (parsed.role !== 'admin') {
+      router.replace(dashboardPath(parsed.role))
+      return
     }
+    setSession(parsed)
   }, [router])
 
-  useEffect(() => {
-    const t = setInterval(() => {
-      setCaps((prev) =>
-        prev.map((c) =>
-          c.status === 'active' && c.expiresIn > 0
-            ? { ...c, expiresIn: c.expiresIn - 1, ...(c.expiresIn - 1 <= 0 ? { status: 'expired' as CapStatus } : {}) }
-            : c
-        )
-      )
-    }, 1000)
-    return () => clearInterval(t)
-  }, [])
-
-  function revoke(id: string) {
-    setCaps((prev) => prev.map((c) => (c.id === id ? { ...c, status: 'revoked' } : c)))
-    const target = caps.find((c) => c.id === id)
-    setToast(`Revoked ${target?.credentialId} — ${target?.agentHandle}'s next request will return 403.`)
-    setTimeout(() => setToast(null), 3500)
-  }
-
   function handleLogout() {
-    localStorage.removeItem(SESSION_KEY)
+    clearSession()
     router.push('/login')
   }
 
@@ -185,43 +114,44 @@ export default function AdminDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {caps.map((c) => {
-                  const mins = Math.floor(c.expiresIn / 60)
-                  const secs = c.expiresIn % 60
-                  return (
-                    <tr key={c.id}>
-                      <td className="mono">{c.credentialId}</td>
-                      <td>{c.agentHandle}</td>
-                      <td className="mono">{c.resource}</td>
-                      <td>{c.action}</td>
-                      <td>
-                        {c.quotaUsed} / {c.quotaTotal}
-                      </td>
-                      <td className="mono">
-                        {c.status === 'active' ? `${mins}:${secs.toString().padStart(2, '0')}` : '—'}
-                      </td>
-                      <td>
-                        <span className={`badge badge--${statusMeta[c.status].tone}`}>
-                          {statusMeta[c.status].label}
-                        </span>
-                      </td>
-                      <td>
-                        {c.status === 'active' && (
-                          <button className="btn btn--revoke-sm" onClick={() => revoke(c.id)}>
-                            Revoke
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })}
+                {caps.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="empty-cell">
+                      No capabilities on chain yet. This list stays empty until payment
+                      atomically mints a grant — revoke will call the contract, not local state.
+                    </td>
+                  </tr>
+                ) : (
+                  caps.map((c) => {
+                    const mins = Math.floor(c.expiresIn / 60)
+                    const secs = c.expiresIn % 60
+                    return (
+                      <tr key={c.id}>
+                        <td className="mono">{c.credentialId}</td>
+                        <td>{c.agentHandle}</td>
+                        <td className="mono">{c.resource}</td>
+                        <td>{c.action}</td>
+                        <td>
+                          {c.quotaUsed} / {c.quotaTotal}
+                        </td>
+                        <td className="mono">
+                          {c.status === 'active' ? `${mins}:${secs.toString().padStart(2, '0')}` : '—'}
+                        </td>
+                        <td>
+                          <span className={`badge badge--${statusMeta[c.status].tone}`}>
+                            {statusMeta[c.status].label}
+                          </span>
+                        </td>
+                        <td />
+                      </tr>
+                    )
+                  })
+                )}
               </tbody>
             </table>
           </div>
         </section>
       </main>
-
-      {toast && <div className="toast">{toast}</div>}
 
       <style jsx>{`
         .shell {
@@ -383,6 +313,12 @@ export default function AdminDashboard() {
         .mono {
           font-family: ui-monospace, 'SF Mono', Menlo, monospace;
           font-size: 0.82rem;
+        }
+        .empty-cell {
+          color: var(--text-muted);
+          padding: 28px 12px;
+          text-align: center;
+          line-height: 1.5;
         }
 
         .badge {

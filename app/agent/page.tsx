@@ -2,12 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { clearSession, dashboardPath, readSession, type Session } from '@/lib/session'
 
-const SESSION_KEY = 'veil-session'
-
-type Session = { handle: string; role: 'agent' | 'admin' }
 type View = 'dashboard' | 'agent' | 'capabilities' | 'payments' | 'resources' | 'activity'
-type CapStatus = 'idle' | 'requesting' | 'payment_required' | 'paying' | 'active' | 'revoked' | 'expired'
 
 type LogEntry = {
   id: number
@@ -22,22 +19,12 @@ type ChatMsg = {
   text: string
 }
 
-type ChatSession = {
-  id: number
-  title: string
-  messages: ChatMsg[]
-  savedAt: string
+const RESOURCE = {
+  id: 'premium-data',
+  label: 'Premium Market Data',
+  price: '$0.05',
+  unit: 'USDC',
 }
-
-const RESOURCE = { id: 'place-order', label: 'Trading Session Authorization', price: 0.1 }
-
-// Purely for visual variety on the Resources page — not wired to anything real.
-const DUMMY_RESOURCES = [
-  { icon: '📊', name: 'Premium Market Data', endpoint: '/api/premium-data', price: 0.05 },
-  { icon: '📄', name: 'Company Report Access', endpoint: '/api/company-report', price: 0.25 },
-]
-
-const STARTING_BALANCE = 1.0
 
 const NAV: { key: View; label: string; icon: string }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: '⌂' },
@@ -47,65 +34,28 @@ const NAV: { key: View; label: string; icon: string }[] = [
   { key: 'activity', label: 'Activity', icon: '≣' },
 ]
 
-function randHex(len: number) {
-  return Array.from({ length: len }, () => Math.floor(Math.random() * 16).toString(16)).join('').toUpperCase()
-}
-
-function shortAddr(full: string) {
-  return `${full.slice(0, 3)}...${full.slice(-3)}`
-}
-
 export default function AgentDashboard() {
   const router = useRouter()
   const [session, setSession] = useState<Session | null>(null)
   const [view, setView] = useState<View>('dashboard')
-
-  const [status, setStatus] = useState<CapStatus>('idle')
-  const [quota, setQuota] = useState(5)
-  const [expiresIn, setExpiresIn] = useState(1800)
-  const [credentialId, setCredentialId] = useState<string | null>(null)
-  const [holder, setHolder] = useState<string | null>(null)
-  const [txId, setTxId] = useState<string | null>(null)
-  const [balance, setBalance] = useState(STARTING_BALANCE)
-
   const [log, setLog] = useState<LogEntry[]>([])
   const [chat, setChat] = useState<ChatMsg[]>([])
   const [chatHistory, setChatHistory] = useState<ChatSession[]>([])
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
 
-  const [showCapModal, setShowCapModal] = useState(false)
-  const [retryResult, setRetryResult] = useState<'idle' | 'pending' | 'forbidden'>('idle')
-
   useEffect(() => {
-    const match = document.cookie.match(new RegExp('(^| )' + SESSION_KEY + '=([^;]+)'))
-    const raw = match ? decodeURIComponent(match[2]) : null
-    if (!raw) {
+    const parsed = readSession()
+    if (!parsed) {
       router.replace('/login')
       return
     }
-    try {
-      const parsed = JSON.parse(raw) as Session
-      if (parsed.role !== 'agent') {
-        router.replace(parsed.role === 'admin' ? '/admin' : '/login')
-        return
-      }
-      setSession(parsed)
-    } catch {
-      router.replace('/login')
+    if (parsed.role !== 'agent') {
+      router.replace(dashboardPath(parsed.role))
+      return
     }
+    setSession(parsed)
   }, [router])
-
-  useEffect(() => {
-    if (status !== 'active') return
-    if (expiresIn <= 0) {
-      setStatus('expired')
-      pushLog('Capability expired — access lapsed automatically.', 'err')
-      return
-    }
-    const t = setTimeout(() => setExpiresIn((s) => s - 1), 1000)
-    return () => clearTimeout(t)
-  }, [status, expiresIn])
 
   function pushLog(message: string, tone: LogEntry['tone'] = 'muted') {
     setLog((prev) =>
@@ -135,7 +85,7 @@ export default function AgentDashboard() {
   }
 
   function handleLogout() {
-    document.cookie = `${SESSION_KEY}=; path=/; max-age=0`
+    clearSession()
     router.push('/login')
   }
 
@@ -145,99 +95,37 @@ export default function AgentDashboard() {
     setDraft('')
     pushChat('user', message)
     setBusy(true)
+    pushLog(`GET /api/${RESOURCE.id}`, 'muted')
 
-    if (status === 'active' && quota > 0) {
-      await wait(500)
-      pushChat('agent', `Using existing trading capability — placing order…`)
-      pushLog(`POST /api/${RESOURCE.id} → 200 OK (quota ${quota - 1} remaining)`, 'ok')
-      setQuota((q) => Math.max(0, q - 1))
-      await wait(500)
-      pushChat('agent', `Order placed: BUY 10 ALGO @ market. Confirmation #ORD-${randHex(4)}.`)
-      setBusy(false)
-      return
+    try {
+      const res = await fetch(`/api/${RESOURCE.id}`)
+      const text = await res.text()
+      const tone: LogEntry['tone'] =
+        res.status === 200 ? 'ok' : res.status === 402 ? 'warn' : 'err'
+      pushLog(`GET /api/${RESOURCE.id} → ${res.status}`, tone)
+
+      if (res.status === 402) {
+        pushChat(
+          'agent',
+          'Server returned 402 Payment Required (x402). This UI does not mint capabilities — no credential was issued. Pay-and-mint still has to run through the orchestrator on TestNet.'
+        )
+      } else if (res.status === 200) {
+        pushChat(
+          'agent',
+          `Resource returned 200. No capability record was created in this dashboard. ${text.slice(0, 400)}`
+        )
+      } else {
+        pushChat('agent', `Request failed with HTTP ${res.status}.`)
+      }
+    } catch {
+      pushLog(`GET /api/${RESOURCE.id} failed`, 'err')
+      pushChat('agent', `Could not reach /api/${RESOURCE.id}.`)
     }
 
-    if (status === 'revoked') {
-      await wait(400)
-      pushChat('agent', `Attempting to place order via ${RESOURCE.id}…`)
-      await wait(500)
-      pushChat('agent', `Server: 403 FORBIDDEN — reason: CAPABILITY_REVOKED`)
-      pushLog(`POST /api/${RESOURCE.id} → 403 Forbidden (CAPABILITY_REVOKED)`, 'err')
-      setBusy(false)
-      return
-    }
-
-    await wait(500)
-    pushChat('agent', `Placing this trade requires "${RESOURCE.label}" — requesting authorization.`)
-    setStatus('requesting')
-    pushLog(`POST /api/${RESOURCE.id} → requesting…`, 'muted')
-    await wait(600)
-
-    setStatus('payment_required')
-    pushLog('402 Payment Required — x402 terms received', 'warn')
-    pushChat('agent', `Got a 402 — this costs ${RESOURCE.price} ALGO. Paying automatically…`)
-    await wait(700)
-
-    setStatus('paying')
-    pushLog(`Signing payment: ${RESOURCE.price} ALGO on Algorand TestNet…`, 'muted')
-    await wait(900)
-
-    const cred = 'CRED-' + randHex(5)
-    const holderFull = randHex(24)
-    const tx = randHex(20)
-    setCredentialId(cred)
-    setHolder(holderFull)
-    setTxId(tx)
-    setQuota(5)
-    setExpiresIn(1800)
-    setBalance((b) => Math.max(0, +(b - RESOURCE.price).toFixed(2)))
-    setStatus('active')
-    setRetryResult('idle')
-    pushLog(`Payment settled — capability ${cred} issued (WRITE, quota 5, expires 30m)`, 'ok')
-    pushChat('agent', `Paid and received a trading capability (5 orders, expires in 30m). Placing your order…`)
-    await wait(500)
-    pushChat('agent', `Order placed: BUY 10 ALGO @ market. Confirmation #ORD-${randHex(4)}.`)
-    setQuota((q) => Math.max(0, q - 1))
-    pushLog(`POST /api/${RESOURCE.id} → 200 OK (quota 4 remaining)`, 'ok')
     setBusy(false)
   }
 
-  async function revoke() {
-    setStatus('revoked')
-    pushLog(`Capability ${credentialId ?? ''} revoked by provider.`, 'err')
-    setRetryResult('pending')
-    await wait(900)
-    setRetryResult('forbidden')
-    pushChat('agent', `Attempting to place order via ${RESOURCE.id}…`)
-    pushChat('agent', `Server: 403 FORBIDDEN — reason: CAPABILITY_REVOKED`)
-    pushLog(`POST /api/${RESOURCE.id} → 403 Forbidden (CAPABILITY_REVOKED)`, 'err')
-  }
-
-  function reissue() {
-    setCredentialId(null)
-    setHolder(null)
-    setTxId(null)
-    setStatus('idle')
-    setRetryResult('idle')
-    setShowCapModal(false)
-    pushLog('Capability cleared. Ready for a new request.', 'muted')
-  }
-
   if (!session) return null
-
-  const mins = Math.floor(expiresIn / 60)
-  const secs = expiresIn % 60
-  const statusMeta: Record<CapStatus, { label: string; tone: LogEntry['tone'] }> = {
-    idle: { label: 'No active capability', tone: 'muted' },
-    requesting: { label: 'Requesting…', tone: 'muted' },
-    payment_required: { label: '402 Payment Required', tone: 'warn' },
-    paying: { label: 'Settling payment…', tone: 'warn' },
-    active: { label: 'Active', tone: 'ok' },
-    revoked: { label: 'Revoked', tone: 'err' },
-    expired: { label: 'Expired', tone: 'err' },
-  }
-
-  const capExists = credentialId !== null
 
   return (
     <div className="shell">
@@ -292,7 +180,6 @@ export default function AgentDashboard() {
           <div className="topbar__status">
             <span className="dot dot--ok" />
             Algorand Connected
-            <span className="topbar__balance">{balance.toFixed(2)} ALGO</span>
           </div>
         </header>
 
@@ -300,45 +187,10 @@ export default function AgentDashboard() {
           <div className="dashboard-layout">
             <section className="card cap-card-top">
               <h2 className="card__title">Active Capabilities</h2>
-              {!capExists ? (
-                <p className="chat__empty">No capabilities yet — ask your agent to place a trade to get one.</p>
-              ) : (
-                <div className="cap-card">
-                  <div className="cap-card__head">
-                    <span className="cap-card__icon">⚿</span>
-                    <span>{RESOURCE.label}</span>
-                    <span className={`badge badge--${statusMeta[status].tone}`}>{statusMeta[status].label}</span>
-                  </div>
-                  <ul className="cap-card__meta">
-                    <li>WRITE (place order)</li>
-                    <li>{status === 'active' ? `${quota} orders remaining` : `${quota} / 5 orders`}</li>
-                    <li>
-                      {status === 'active'
-                        ? `Expires in ${mins}:${secs.toString().padStart(2, '0')}`
-                        : status === 'expired'
-                        ? 'Expired'
-                        : status === 'revoked'
-                        ? 'Revoked'
-                        : '—'}
-                    </li>
-                  </ul>
-                  <div className="cap-card__actions">
-                    <button className="link" onClick={() => setShowCapModal(true)}>
-                      View Capability
-                    </button>
-                    {status === 'active' && (
-                      <button className="btn btn--ghost" onClick={revoke}>
-                        Revoke
-                      </button>
-                    )}
-                    {(status === 'revoked' || status === 'expired') && (
-                      <button className="btn btn--ghost" onClick={reissue}>
-                        Reissue
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
+              <p className="chat__empty">
+                No capabilities issued. This list stays empty until x402 payment and
+                createCapability run on TestNet — not from this chat.
+              </p>
             </section>
 
             <section className="chat-panel">
@@ -387,38 +239,19 @@ export default function AgentDashboard() {
         {view === 'capabilities' && (
           <section className="card">
             <h2 className="card__title">Capabilities</h2>
-            {!capExists ? (
-              <p className="chat__empty">No capabilities issued yet.</p>
-            ) : (
-              <>
-                <dl className="cap-list">
-                  <div className="cap-row"><dt>Resource</dt><dd>{RESOURCE.id}</dd></div>
-                  <div className="cap-row"><dt>Action</dt><dd>WRITE</dd></div>
-                  <div className="cap-row"><dt>Credential</dt><dd>{credentialId}</dd></div>
-                  <div className="cap-row"><dt>Quota</dt><dd>{quota} / 5</dd></div>
-                  <div className="cap-row">
-                    <dt>Expires in</dt>
-                    <dd>{status === 'active' ? `${mins}:${secs.toString().padStart(2, '0')}` : '—'}</dd>
-                  </div>
-                  <div className="cap-row"><dt>Status</dt><dd>{statusMeta[status].label}</dd></div>
-                </dl>
-                <button className="btn btn--ghost" onClick={() => setShowCapModal(true)} style={{ marginTop: 14 }}>
-                  View Capability
-                </button>
-              </>
-            )}
+            <p className="chat__empty">No capabilities issued yet.</p>
           </section>
         )}
 
         {view === 'payments' && (
           <section className="card">
             <h2 className="card__title">Payments</h2>
-            {log.filter((l) => l.message.includes('Payment settled')).length === 0 ? (
-              <p className="chat__empty">No payments yet.</p>
+            {log.filter((l) => l.message.includes('402') || l.message.includes('200')).length === 0 ? (
+              <p className="chat__empty">No payments yet. Settled x402 transfers will show here once the orchestrator is wired.</p>
             ) : (
               <ul className="log">
                 {log
-                  .filter((l) => l.message.includes('Payment settled'))
+                  .filter((l) => l.message.includes('402') || l.message.includes('200'))
                   .map((entry) => (
                     <li key={entry.id} className="log__row log__row--ok">
                       <span className="log__time">{entry.time}</span>
@@ -447,19 +280,19 @@ export default function AgentDashboard() {
                 </div>
                 <div className="provider__price">
                   <span className="provider__price-num">{RESOURCE.price}</span>
-                  <span className="provider__price-unit">ALGO</span>
+                  <span className="provider__price-unit">{RESOURCE.unit}</span>
                 </div>
               </div>
 
               <div className="provider__actions">
-                <span className="pill pill--off">READ</span>
-                <span className="pill pill--on">✓ WRITE</span>
+                <span className="pill pill--on">✓ READ</span>
+                <span className="pill pill--off">WRITE</span>
               </div>
 
               <div className="provider__stats">
                 <div className="provider__stat">
                   <span className="provider__stat-num">5</span>
-                  <span className="provider__stat-label">orders per capability</span>
+                  <span className="provider__stat-label">requests per capability</span>
                 </div>
                 <div className="provider__stat">
                   <span className="provider__stat-num">30m</span>
@@ -517,131 +350,6 @@ export default function AgentDashboard() {
           </section>
         )}
       </main>
-
-      {/* ---------- CAPABILITY DETAILS MODAL ---------- */}
-      {showCapModal && capExists && (
-        <div className="modal-overlay" onClick={() => setShowCapModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal__head">
-              <span>CAPABILITY DETAILS</span>
-              <button className="modal__close" onClick={() => setShowCapModal(false)}>
-                ✕
-              </button>
-            </div>
-
-            {status !== 'revoked' ? (
-              <div className="modal__body">
-                <div className="modal__field">
-                  <span className="modal__label">Credential ID</span>
-                  <span className="modal__value">{credentialId}</span>
-                </div>
-                <div className="modal__field">
-                  <span className="modal__label">Resource</span>
-                  <span className="modal__value">{RESOURCE.id}</span>
-                </div>
-                <div className="modal__field">
-                  <span className="modal__label">Action</span>
-                  <span className="modal__value">WRITE</span>
-                </div>
-                <div className="modal__field">
-                  <span className="modal__label">Payment</span>
-                  <span className="modal__value">{RESOURCE.price} ALGO</span>
-                </div>
-                <div className="modal__field">
-                  <span className="modal__label">Requests</span>
-                  <div className="modal__progress">
-                    <div className="modal__progress-track">
-                      <div
-                        className="modal__progress-fill"
-                        style={{ width: `${((5 - quota) / 5) * 100}%` }}
-                      />
-                    </div>
-                    <span className="modal__value">{5 - quota} / 5</span>
-                  </div>
-                </div>
-                <div className="modal__field">
-                  <span className="modal__label">Expires</span>
-                  <span className="modal__value">
-                    {status === 'active' ? `${mins} minutes ${secs} seconds` : 'Expired'}
-                  </span>
-                </div>
-                <div className="modal__field">
-                  <span className="modal__label">Holder</span>
-                  <span className="modal__value">{holder && shortAddr(holder)}</span>
-                </div>
-                <div className="modal__field">
-                  <span className="modal__label">Status</span>
-                  <span className="modal__value">
-                    <span className={`dot dot--${statusMeta[status].tone === 'ok' ? 'ok' : 'err'}`} />{' '}
-                    {statusMeta[status].label.toUpperCase()}
-                  </span>
-                </div>
-                <div className="modal__field">
-                  <span className="modal__label">Algorand Transaction</span>
-                  <span className="modal__value">
-                    {txId && shortAddr(txId)}{' '}
-                    <a className="link" href="#" onClick={(e) => e.preventDefault()}>
-                      View on Explorer
-                    </a>
-                  </span>
-                </div>
-
-                {status === 'active' && (
-                  <button className="btn btn--revoke" onClick={revoke}>
-                    REVOKE ACCESS
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="modal__body">
-                <div className="modal__field">
-                  <span className="modal__label">Resource</span>
-                  <span className="modal__value">{RESOURCE.id}</span>
-                </div>
-                <div className="modal__field">
-                  <span className="modal__label">Action</span>
-                  <span className="modal__value">WRITE</span>
-                </div>
-                <div className="modal__field">
-                  <span className="modal__label">Requests</span>
-                  <span className="modal__value">{5 - quota} / 5</span>
-                </div>
-                <div className="modal__field">
-                  <span className="modal__label">Status</span>
-                  <span className="modal__value">
-                    <span className="dot dot--err" /> REVOKED
-                  </span>
-                </div>
-                <p className="modal__note">Revoked on Algorand</p>
-                <p className="modal__note modal__note--ok">✓ Transaction confirmed</p>
-
-                <div className="modal__retry">
-                  <p className="modal__retry-label">Then the AI agent tries:</p>
-                  <div className="retry-box">
-                    <p className="retry-box__line">Agent:</p>
-                    <p className="retry-box__line retry-box__line--muted">Requesting {RESOURCE.id}...</p>
-                    {retryResult === 'pending' && (
-                      <p className="retry-box__line retry-box__line--muted">Server: …</p>
-                    )}
-                    {retryResult === 'forbidden' && (
-                      <>
-                        <p className="retry-box__line">Server:</p>
-                        <p className="retry-box__line retry-box__line--err">403 FORBIDDEN</p>
-                        <p className="retry-box__line">Reason:</p>
-                        <p className="retry-box__line retry-box__line--err">CAPABILITY_REVOKED</p>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                <button className="btn btn--ghost" onClick={reissue} style={{ marginTop: 16 }}>
-                  Reissue capability
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       <style jsx>{`
         .shell {
@@ -1391,8 +1099,4 @@ export default function AgentDashboard() {
       `}</style>
     </div>
   )
-}
-
-function wait(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
 }

@@ -2,13 +2,12 @@
 
 import { Suspense, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { dashboardPath, writeSession, type SessionRole } from '@/lib/session'
 
-type Role = 'agent' | 'admin'
+type Role = SessionRole
 type Mode = 'signin' | 'signup'
 
-const SESSION_KEY = 'veil-session'
-
-function LoginForm() {
+export default function LoginPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [mode, setMode] = useState<Mode>(
@@ -46,12 +45,11 @@ function LoginForm() {
         setInfo(`"${finalHandle}" already exists — signing you in instead.`)
       }
 
-      const session = { handle: data.user.handle, role: data.user.role }
-      localStorage.setItem(SESSION_KEY, JSON.stringify(session))
+      const sessionRole: SessionRole =
+        data.user.role === 'admin' ? 'admin' : 'agent'
+      writeSession({ handle: data.user.handle, role: sessionRole })
 
-      // Small delay so the info message is visible before navigating away,
-      // only when we actually have something to show.
-      const go = () => router.push(data.user.role === 'admin' ? '/admin' : '/agent')
+      const go = () => router.push(dashboardPath(sessionRole))
       if (data.note === 'handle_already_existed_logged_in') {
         setTimeout(go, 900)
       } else {
@@ -61,9 +59,6 @@ function LoginForm() {
       setError('Could not reach the server. Try again.')
       setLoading(false)
     }
-    const session = { handle: handle || (role === 'agent' ? 'agent-01' : 'provider-demo'), role }
-    document.cookie = `${SESSION_KEY}=${encodeURIComponent(JSON.stringify(session))}; path=/; max-age=86400; SameSite=Strict`
-    router.push(role === 'admin' ? '/admin' : '/agent')
   }
 
   return (

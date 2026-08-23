@@ -2,6 +2,7 @@ import algosdk from 'algosdk';
 import { wrapFetchWithPayment } from '@x402/fetch';
 import { x402Client } from '@x402/core/client';
 import { ExactAvmScheme, toClientAvmSigner, ALGORAND_TESTNET_CAIP2 } from '@x402/avm';
+import { ALGORAND_TESTNET_NETWORK } from "@/lib/constants";
 
 /**
  * Veil Agent Orchestrator
@@ -55,7 +56,17 @@ function getPaymentClient() {
   const signer = toClientAvmSigner(privateKeyBase64);
 
   const client = new x402Client();
-  client.register(ALGORAND_TESTNET_CAIP2, new ExactAvmScheme(signer));
+  client.register(ALGORAND_TESTNET_NETWORK, new ExactAvmScheme(signer));
+
+  // --- temporary diagnostic hooks ---
+  client.onBeforePaymentCreation(async (ctx: any) => {
+    console.log('[x402] attempting payment for:', JSON.stringify(ctx.selectedRequirements ?? ctx, null, 2));
+  });
+  client.onPaymentCreationFailure(async (ctx: any) => {
+    console.log('[x402] payment creation FAILED:', JSON.stringify(ctx, null, 2));
+  });
+  // --- end diagnostic hooks ---
+
   return client;
 }
 

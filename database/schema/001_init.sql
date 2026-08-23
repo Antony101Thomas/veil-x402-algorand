@@ -12,6 +12,29 @@
 -- (Safe to re-run: every statement is idempotent.)
 
 -- ---------------------------------------------------------------------
+-- users
+-- Demo login accounts for /login and POST /api/users.
+-- Distinct from `agents` (wallet-bearing runtime identities). Handle
+-- uniqueness is case-insensitive so "Agent-01" and "agent-01" collide.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS users (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  handle     TEXT NOT NULL,
+  role       TEXT NOT NULL
+             CHECK (role IN ('agent', 'admin')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS users_handle_lower_key
+  ON users (lower(handle));
+
+INSERT INTO users (handle, role)
+VALUES
+  ('agent-01', 'agent'),
+  ('provider-demo', 'admin')
+ON CONFLICT ((lower(handle))) DO NOTHING;
+
+-- ---------------------------------------------------------------------
 -- agents
 -- One row per AI agent identity known to Veil.
 -- ---------------------------------------------------------------------

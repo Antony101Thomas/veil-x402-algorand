@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { dashboardPath, readSession } from '@/lib/session';
 
 /**
  * Veil — landing page (app/page.tsx)
@@ -16,8 +17,6 @@ import { useRouter } from 'next/navigation';
  * No external deps — motion is IntersectionObserver + CSS, so it doesn't
  * depend on framer-motion or any font not already loaded by the project.
  */
-
-const SESSION_KEY = 'veil-session';
 
 const FLOW_STEPS = [
   {
@@ -226,16 +225,9 @@ export default function LandingPage() {
 
   // Returning visitor with an existing demo session? Skip straight to their dashboard.
   useEffect(() => {
-    const match = document.cookie.match(new RegExp('(^| )' + SESSION_KEY + '=([^;]+)'));
-    const raw = match ? decodeURIComponent(match[2]) : null;
-    if (!raw) return;
-    try {
-      const session = JSON.parse(raw) as { role?: 'agent' | 'admin' };
-      if (session.role === 'admin') router.replace('/admin');
-      else if (session.role === 'agent') router.replace('/agent');
-    } catch {
-      // corrupted session value — ignore and let them see the landing page
-    }
+    const session = readSession();
+    if (!session) return;
+    router.replace(dashboardPath(session.role));
   }, [router]);
 
   // Headline types itself out once, on load.
