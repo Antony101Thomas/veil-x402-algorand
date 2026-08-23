@@ -16,8 +16,8 @@ import OpenAI from 'openai';
  * `callModel`       — backward-compat shim for agent/orchestrator.ts
  */
 
-const GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
-const DEFAULT_MODEL = 'groq/compound'; // set XAI_MODEL env to override
+const XAI_BASE_URL = 'https://api.x.ai/v1';
+const DEFAULT_MODEL = 'grok-3-mini'; // set XAI_MODEL env to override
 
 let client: OpenAI | null = null;
 
@@ -28,7 +28,7 @@ function getClient(): OpenAI {
   if (!client) {
     client = new OpenAI({
       apiKey: process.env.XAI_API_KEY,
-      baseURL: GROQ_BASE_URL,
+      baseURL: XAI_BASE_URL,
     });
   }
   return client;
