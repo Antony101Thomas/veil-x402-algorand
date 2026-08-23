@@ -24,7 +24,7 @@ function getBaseUrl() {
 
 function getDefaultModel() {
   const key = process.env.XAI_API_KEY || '';
-  if (key.startsWith('gsk_')) return 'llama-3.3-70b-versatile'; // highly available groq model
+  if (key.startsWith('gsk_')) return 'llama3-8b-8192'; // The most stable, universally available free Groq model
   return 'grok-3-mini';
 }
 
