@@ -1,28 +1,10 @@
 import { NextResponse } from 'next/server';
+import { safeSupabaseQuery } from '@/lib/supabase-server';
 
 export async function GET() {
-  try {
-    const { supabaseServer } = await import('@/lib/supabase-server');
+  const data = await safeSupabaseQuery((db) =>
+    db.from('capabilities').select('*').order('created_at', { ascending: false })
+  );
 
-    const fetchDb = async (): Promise<any[]> => {
-      try {
-        const res = await supabaseServer
-          .from('capabilities')
-          .select('*')
-          .order('created_at', { ascending: false });
-        return res?.data || [];
-      } catch {
-        return [];
-      }
-    };
-
-    const timeoutPromise = new Promise<any[]>((resolve) =>
-      setTimeout(() => resolve([]), 2000)
-    );
-
-    const sessions = await Promise.race([fetchDb(), timeoutPromise]);
-    return NextResponse.json({ sessions });
-  } catch {
-    return NextResponse.json({ sessions: [] });
-  }
+  return NextResponse.json({ sessions: data || [] }, { status: 200 });
 }
