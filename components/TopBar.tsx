@@ -53,7 +53,10 @@ export function TopBar() {
   return (
     <header className="topbar">
       <div className="topbar__left">
-        <Link href="/" className="topbar__brand">
+        <Link
+          href={session ? (session.role === 'admin' ? '/admin' : '/agent') : '/'}
+          className="topbar__brand"
+        >
           <span className="topbar__play" aria-hidden="true" />
           HyperDesk
         </Link>

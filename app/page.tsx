@@ -168,12 +168,21 @@ const TRANSCRIPT_LINE_DEFS = [
 
 export default function LandingPage() {
   const router = useRouter();
+  const [hasSession, setHasSession] = useState<boolean | null>(null);
 
   useEffect(() => {
     const session = readSession();
-    if (!session) return;
-    router.replace(dashboardPath(session.role));
+    if (session) {
+      setHasSession(true);
+      router.replace(dashboardPath(session.role));
+    } else {
+      setHasSession(false);
+    }
   }, [router]);
+
+  if (hasSession === true) {
+    return <div style={{ minHeight: '100vh', background: '#000' }} />;
+  }
 
   const typedHeadline = useTypewriter(HERO_HEADLINE_PREFIX + HERO_HEADLINE_ACCENT, 35, true);
   const typedPrefix = typedHeadline.slice(0, HERO_HEADLINE_PREFIX.length);
