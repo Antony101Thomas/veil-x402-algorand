@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { writeSession } from '@/lib/session'
 
@@ -40,6 +40,14 @@ function useTypewriterLines(lines: string[], speed = 18, start = true) {
 }
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<div style={{ minHeight: '100vh', background: '#000' }} />}>
+      <LoginInner />
+    </Suspense>
+  )
+}
+
+function LoginInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
