@@ -5,46 +5,44 @@ import { ExactAvmScheme, toClientAvmSigner, ALGORAND_TESTNET_CAIP2 } from '@x402
 import { ALGORAND_TESTNET_NETWORK } from "@/lib/constants";
 
 /**
- * Veil Agent Orchestrator
+ * NovaDeck Agent Orchestrator
  *
- * This is the controlled tool layer the blueprint describes in section 6:
- * the LLM only decides WHICH resource to fetch and how to summarize the
- * result. It never touches payment logic, the wallet, or capability
- * validation directly — those are fixed, deterministic tools it calls.
+ * Tool-using autonomous workflow for NovaDeck Cloud PC sessions.
+ * The LLM only decides WHICH rig to request and how to summarize the result.
+ * It never touches payment logic, the wallet, or session validation directly.
  *
- * Wire these six functions up as LLM tool definitions (function-calling
- * schema) in whatever SDK you're using for the model. The LLM's job is just
- * to call run() with a goal; run() drives the fixed sequence.
+ * Tools:
+ *  1. discover_rig()          — pick a rig by use-case
+ *  2. request_session_with_payment() — x402 pay + session establish
+ *  3. obtain_session_credential()    — extract credential from payment response
+ *  4. access_with_session()          — prove credential ownership, get connection
+ *  5. summarize_session()            — LLM summarizes session info for user
  */
 
-// --- Types -------------------------------------------------------------
+// --- Types ---
 
-interface ResourceInfo {
-  resourceId: string;
+interface RigInfo {
+  rigId: string;
   endpoint: string;
-  price: string; // display string, e.g. "0.05 USDC"
+  pricePerHour: number;
+  durationHours: number;
   description: string;
 }
 
-interface CapabilityRecord {
+interface SessionCredential {
   credentialId: string;
-  resourceId: string;
-  action: string;
-  quota: number;
-  expiryRound: number;
-  holder: string;
-  revoked: boolean;
+  disposablePrivateKeyBase64: string;
 }
 
 interface AgentResult {
   status: 'ok' | 'payment_failed' | 'access_denied' | 'error';
   data?: unknown;
   summary?: string;
-  capability?: CapabilityRecord;
+  credential?: SessionCredential;
   error?: string;
 }
 
-// --- Fixed config (one resource, one payer, per the hackathon MVP scope) ---
+// --- Config ---
 
 const RESOURCE_SERVER_BASE = process.env.VEIL_RESOURCE_SERVER_URL ?? 'http://localhost:3000';
 const AGENT_MNEMONIC = process.env.ALGORAND_PAYER_MNEMONIC;
@@ -58,52 +56,59 @@ function getPaymentClient() {
   const client = new x402Client();
   client.register(ALGORAND_TESTNET_NETWORK, new ExactAvmScheme(signer));
 
-  // --- temporary diagnostic hooks ---
+  // Diagnostic hooks
   client.onBeforePaymentCreation(async (ctx: any) => {
     console.log('[x402] attempting payment for:', JSON.stringify(ctx.selectedRequirements ?? ctx, null, 2));
   });
   client.onPaymentCreationFailure(async (ctx: any) => {
     console.log('[x402] payment creation FAILED:', JSON.stringify(ctx, null, 2));
   });
-  // --- end diagnostic hooks ---
 
   return client;
 }
 
-// --- Tool 1: discover_resource -----------------------------------------
+// --- Tool 1: discover_rig ---
 
 /**
- * Finds the demo resource and its price. For the MVP this is a single
- * hardcoded resource per the blueprint's "constrain the agent to one known
- * resource" guidance — swap for a GET /api/resources call once that route
- * exists.
+ * Discovers an available rig matching the requested use-case.
+ * For the MVP this returns the beast rig by default.
  */
-export async function discover_resource(): Promise<ResourceInfo> {
+export async function discover_rig(
+  useCase: 'gaming' | 'editing' | 'ai' | 'rendering' = 'gaming',
+  durationHours: number = 2
+): Promise<RigInfo> {
+  const rigMap: Record<string, string> = {
+    gaming: 'rig-beast',
+    editing: 'rig-pro',
+    ai: 'rig-pro',
+    rendering: 'rig-beast',
+  };
+
+  const rigId = rigMap[useCase] ?? 'rig-starter';
+
   return {
-    resourceId: 'premium-data',
-    endpoint: `${RESOURCE_SERVER_BASE}/api/premium-data`,
-    price: '0.05 USDC',
-    description: 'Premium market data resource for demo purposes.',
+    rigId,
+    endpoint: `${RESOURCE_SERVER_BASE}/api/sessions/connect?rig=${rigId}&hours=${durationHours}`,
+    pricePerHour: { 'rig-starter': 0.50, 'rig-pro': 1.50, 'rig-beast': 3.00 }[rigId] ?? 0.50,
+    durationHours,
+    description: `NovaDeck cloud PC session — ${rigId} for ${durationHours} hour(s).`,
   };
 }
 
-// --- Tool 2 + 3: request_resource + pay_x402 (combined) ----------------
+// --- Tool 2: request_session_with_payment ---
 
 /**
- * Requests the protected resource. If it comes back 402, the x402 client
- * automatically constructs and signs the payment, retries, and returns the
- * final response. This wraps request_resource + pay_x402 into one call
- * because @x402/fetch's wrapFetchWithPayment already handles the 402 →
- * pay → retry sequence internally — see the debugging session where we
- * traced this exact code path.
+ * Requests a NovaDeck session. If it comes back 402, the x402 client
+ * automatically constructs and signs the payment on Algorand, retries,
+ * and returns the final response.
  */
-export async function request_resource_with_payment(
-  resource: ResourceInfo,
+export async function request_session_with_payment(
+  rig: { endpoint: string; [key: string]: any },
 ): Promise<{ status: number; body: unknown; headers: Headers }> {
   const client = getPaymentClient();
   const fetchWithPayment = wrapFetchWithPayment(fetch, client);
 
-  const res = await fetchWithPayment(resource.endpoint);
+  const res = await fetchWithPayment(rig.endpoint);
   const text = await res.text();
   let body: unknown = {};
   try {
@@ -115,29 +120,21 @@ export async function request_resource_with_payment(
   return { status: res.status, body, headers: res.headers };
 }
 
-// --- Tool 4: obtain_capability -------------------------------------------
+// --- Tool 3: obtain_session_credential ---
 
 /**
- * After a successful payment, the resource server should have already
- * created the on-chain capability (via VeilCapability.createCapability) and
- * returned its credentialId in the response headers or body. This tool just
- * reads that back for the dashboard / agent's own record-keeping — it does
- * NOT issue the capability itself (only the admin/server account can call
- * createCapability on-chain).
- *
- * Adjust the header/body field names once Person 3's resource server
- * settles on where it puts the credential id in the 200 response.
+ * Extracts the session credential from the payment response.
  */
-export async function obtain_capability(
+export async function obtain_session_credential(
   paymentResponse: { status: number; body: unknown; headers: Headers },
-): Promise<{ credentialId: string; disposablePrivateKeyBase64: string } | null> {
+): Promise<SessionCredential | null> {
   if (paymentResponse.status !== 200) return null;
 
   const body = paymentResponse.body as any;
   const credentialId =
     paymentResponse.headers.get('x-veil-credential-id') ??
     body?.credentialId;
-    
+
   const disposablePrivateKeyBase64 = body?.disposableKeyBase64;
 
   if (!credentialId || !disposablePrivateKeyBase64) return null;
@@ -145,15 +142,14 @@ export async function obtain_capability(
   return { credentialId, disposablePrivateKeyBase64 };
 }
 
-// --- Tool 5: access_with_capability --------------------------------------
+// --- Tool 4: access_with_session ---
 
 /**
- * Retries the protected resource using an already-issued capability rather
- * than paying again — this is the path exercised after the first payment,
- * within the quota window, before expiry/revocation.
+ * Re-accesses the session using the stored credential + nonce/signature,
+ * proving ownership without paying again.
  */
-export async function access_with_capability(
-  resource: ResourceInfo,
+export async function access_with_session(
+  rig: { endpoint: string; [key: string]: any },
   credentialId: string,
   disposablePrivateKeyBase64: string
 ): Promise<{ status: number; body: unknown }> {
@@ -161,7 +157,7 @@ export async function access_with_capability(
   const nonceRes = await fetch(`${RESOURCE_SERVER_BASE}/api/auth/nonce`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ credentialId })
+    body: JSON.stringify({ credentialId }),
   });
 
   if (!nonceRes.ok) {
@@ -176,15 +172,15 @@ export async function access_with_capability(
   const signatureBytes = algosdk.signBytes(messageBytes, privateKeyBytes);
   const signatureBase64 = Buffer.from(signatureBytes).toString('base64');
 
-  // 3. Request the resource with the signed nonce
-  const res = await fetch(resource.endpoint, {
-    headers: { 
+  // 3. Request the session endpoint with the signed nonce
+  const res = await fetch(rig.endpoint, {
+    headers: {
       'x-credential-id': credentialId,
       'x-nonce': nonce,
-      'x-signature': signatureBase64
+      'x-signature': signatureBase64,
     },
   });
-  
+
   const text = await res.text();
   let body: unknown = {};
   try {
@@ -195,56 +191,82 @@ export async function access_with_capability(
   return { status: res.status, body };
 }
 
-// --- Tool 6: summarize_data ----------------------------------------------
+// --- Tool 5: summarize_session ---
 
 /**
- * Hands the returned data to the LLM for summarization. This is the ONE
- * place the LLM's reasoning actually touches the flow beyond picking the
- * resource — keep the prompt narrow and deterministic for demo reliability.
+ * Hands the session data to the LLM for a concise user-facing summary.
  */
-export async function summarize_data(data: unknown, callModel: (prompt: string) => Promise<string>): Promise<string> {
-  const prompt = `Summarize this market data for a user in 1-2 sentences:\n\n${JSON.stringify(data, null, 2)}`;
+export async function summarize_session(
+  data: unknown,
+  callModel: (prompt: string) => Promise<string>
+): Promise<string> {
+  const prompt = `Summarize this NovaDeck cloud PC session info for a user in 1-2 sentences:\n\n${JSON.stringify(data, null, 2)}`;
   return callModel(prompt);
 }
 
-// --- Orchestration entrypoint ---------------------------------------------
+// --- Orchestration entrypoint ---
 
 /**
- * The full end-to-end run the demo script calls. Deterministic sequence;
- * the LLM is only invoked inside summarize_data.
+ * Full end-to-end NovaDeck session acquisition.
+ * The LLM is only invoked inside summarize_session.
  */
-export async function run(callModel: (prompt: string) => Promise<string>): Promise<AgentResult> {
+export async function run(
+  callModel: (prompt: string) => Promise<string>,
+  options: { useCase?: 'gaming' | 'editing' | 'ai' | 'rendering'; durationHours?: number } = {}
+): Promise<AgentResult> {
   try {
-    const resource = await discover_resource();
-    const paymentResult = await request_resource_with_payment(resource);
+    const rig = await discover_rig(options.useCase ?? 'gaming', options.durationHours ?? 2);
+    const paymentResult = await request_session_with_payment(rig);
 
     if (paymentResult.status === 402) {
-      return { status: 'payment_failed', error: 'Payment was attempted but resource still returned 402.' };
+      return { status: 'payment_failed', error: 'Payment was attempted but session still returned 402.' };
     }
     if (paymentResult.status === 403) {
-      return { status: 'access_denied', error: 'Capability revoked or invalid.' };
+      return { status: 'access_denied', error: 'Session credential revoked or invalid.' };
     }
     if (paymentResult.status !== 200) {
       return { status: 'error', error: `Unexpected status ${paymentResult.status}` };
     }
 
-    // 1. Obtain capability
-    const capInfo = await obtain_capability(paymentResult);
-    if (!capInfo) {
-      return { status: 'error', error: 'Failed to obtain capability from payment response.' };
+    // Obtain session credential
+    const credential = await obtain_session_credential(paymentResult);
+    if (!credential) {
+      return { status: 'error', error: 'Failed to obtain session credential from payment response.' };
     }
 
-    // 2. Access with capability (proving it works without paying again!)
-    const accessResult = await access_with_capability(resource, capInfo.credentialId, capInfo.disposablePrivateKeyBase64);
-    
+    // Prove ownership via nonce/signature
+    const accessResult = await access_with_session(
+      rig,
+      credential.credentialId,
+      credential.disposablePrivateKeyBase64
+    );
+
     if (accessResult.status !== 200) {
-      return { status: 'error', error: `Capability access failed with status ${accessResult.status}. ${JSON.stringify(accessResult.body)}` };
+      return {
+        status: 'error',
+        error: `Session access failed with status ${accessResult.status}. ${JSON.stringify(accessResult.body)}`,
+      };
     }
 
-    const summary = await summarize_data(accessResult.body, callModel);
+    const summary = await summarize_session(accessResult.body, callModel);
 
-    return { status: 'ok', data: accessResult.body, summary };
+    return { status: 'ok', data: accessResult.body, summary, credential };
   } catch (err) {
     return { status: 'error', error: err instanceof Error ? err.message : 'Unknown error' };
   }
 }
+
+// --- Backward compatibility aliases ---
+export const discover_resource = async () => {
+  const rig = await discover_rig('gaming', 2);
+  return {
+    resourceId: rig.rigId,
+    endpoint: rig.endpoint,
+    price: `${rig.pricePerHour} USDC`,
+    description: rig.description,
+  };
+};
+
+export const request_resource_with_payment = request_session_with_payment;
+export const obtain_capability = obtain_session_credential;
+export const access_with_capability = access_with_session;

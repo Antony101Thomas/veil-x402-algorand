@@ -3,9 +3,11 @@ export const SESSION_KEY = 'veil-session'
 export type SessionRole = 'agent' | 'admin'
 
 export type Session = {
+  id?: string
   handle: string
   role: SessionRole
 }
+
 
 const COOKIE_MAX_AGE = 86400
 

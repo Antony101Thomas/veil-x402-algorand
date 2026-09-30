@@ -46,14 +46,19 @@ export function TopBar() {
 
   return (
     <header className="topbar">
-      <button
-        type="button"
-        className="topbar__brand"
-        onClick={() => window.location.reload()}
-      >
-        <span className="topbar__play" aria-hidden="true" />
-        Veil
-      </button>
+      <div className="topbar__left">
+        <Link href="/" className="topbar__brand">
+          <span className="topbar__play" aria-hidden="true" />
+          HyperDesk
+        </Link>
+        <nav className="topbar__nav">
+          <Link href="/rigs" className="nav-link">Browse Fleet</Link>
+          <Link href="/host" className="nav-link nav-host">🖥️ Host PC Mode</Link>
+          <Link href="/sessions" className="nav-link">Sessions</Link>
+          <Link href="/rewards" className="nav-link">Rewards</Link>
+        </nav>
+      </div>
+
       <div className="topbar__right">
         {session?.role === 'agent' && (
           <Link href="/wallet" className="topbar__wallet-badge" aria-label="Wallet">
@@ -68,26 +73,27 @@ export function TopBar() {
           align-items: center;
           justify-content: space-between;
           height: 56px;
-          padding: 0 16px;
+          padding: 0 20px;
           border-bottom: 1px solid var(--border);
           background: var(--bg);
         }
-        .topbar__brand {
+        .topbar__left {
+          display: flex;
+          align-items: center;
+          gap: 24px;
+        }
+        :global(.topbar__brand) {
           display: inline-flex;
           align-items: center;
           gap: 8px;
-          font-weight: 700;
+          font-weight: 800;
           font-size: 18px;
           letter-spacing: -0.01em;
-          color: var(--text);
-          background: none;
-          border: none;
-          padding: 0;
-          cursor: pointer;
-          font-family: inherit;
+          color: var(--accent, #ff0000);
+          text-decoration: none;
         }
-        .topbar__brand:hover {
-          opacity: 0.8;
+        :global(.topbar__brand:hover) {
+          opacity: 0.88;
         }
         .topbar__play {
           width: 0;
@@ -96,12 +102,32 @@ export function TopBar() {
           border-bottom: 6px solid transparent;
           border-left: 10px solid var(--accent);
         }
+        .topbar__nav {
+          display: flex;
+          gap: 16px;
+        }
+        :global(.nav-link) {
+          color: var(--text-muted);
+          text-decoration: none;
+          font-size: 0.85rem;
+          font-weight: 600;
+          transition: color 0.15s ease;
+        }
+        :global(.nav-link:hover) {
+          color: var(--text);
+        }
+        :global(.nav-host) {
+          color: #10b981;
+        }
+        :global(.nav-host:hover) {
+          color: #34d399;
+        }
         .topbar__right {
           display: flex;
           align-items: center;
           gap: 12px;
         }
-        .topbar__wallet-badge {
+        :global(.topbar__wallet-badge) {
           display: inline-flex;
           align-items: center;
           justify-content: center;
@@ -110,18 +136,14 @@ export function TopBar() {
           text-decoration: none;
           transition: opacity 0.15s ease, transform 0.1s ease;
         }
-        .topbar__wallet-badge img {
+        :global(.topbar__wallet-badge img) {
           width: 100%;
           height: 100%;
           object-fit: contain;
-        }
-        .topbar__wallet-badge:hover {
-          opacity: 0.88;
-        }
-        .topbar__wallet-badge:active {
-          transform: scale(0.94);
         }
       `}</style>
     </header>
   )
 }
+
+export default TopBar

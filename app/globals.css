@@ -1,51 +1,59 @@
-@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
 :root {
-  --font-body: 'Roboto', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
 
-  /* Base defaults (dark) — always defined, even before/without a data-theme
-     attribute landing on <html>. The [data-theme] blocks below override these. */
-  --bg: #0f0f0f;
-  --surface: #212121;
-  --surface-raised: #272727;
-  --border: #3f3f3f;
-  --text: #f1f1f1;
-  --text-muted: #aaaaaa;
-  --accent: #ff0000;
-  --accent-hover: #ff4d4d;
-  --toggle-track: #3f3f3f;
-  --toggle-border: #4d4d4d;
-  --toggle-tick: #6b6b6b;
+  /* Base defaults (dark) — pure black theme */
+  --bg: #000000;
+  --surface: #121212;
+  --surface-raised: #181818;
+  --border: #27272a;
+  --text: #ffffff;
+  --text-muted: #a1a1aa;
+  --accent: #ffffff;
+  --accent-hover: #e4e4e7;
+  --accent-contrast: #000000;
+  --btn-bg: #ffffff;
+  --btn-text: #000000;
+  --toggle-track: #27272a;
+  --toggle-border: #3f3f46;
+  --toggle-tick: #a1a1aa;
 }
 
-/* Light — default YouTube look: white surface, near-black text, red accent */
+/* Light mode — pure white background, black buttons & accents */
 [data-theme='light'] {
   --bg: #ffffff;
-  --surface: #f9f9f9;
+  --surface: #f4f4f5;
   --surface-raised: #ffffff;
-  --border: #e5e5e5;
-  --text: #0f0f0f;
-  --text-muted: #606060;
-  --accent: #ff0000;
-  --accent-hover: #cc0000;
-  --toggle-track: #e5e5e5;
-  --toggle-border: #d3d3d3;
-  --toggle-tick: #909090;
+  --border: #e4e4e7;
+  --text: #09090b;
+  --text-muted: #71717a;
+  --accent: #000000;
+  --accent-hover: #27272a;
+  --accent-contrast: #ffffff;
+  --btn-bg: #000000;
+  --btn-text: #ffffff;
+  --toggle-track: #e4e4e7;
+  --toggle-border: #d4d4d8;
+  --toggle-tick: #71717a;
 }
 
-/* Dark — YouTube's own dark mode surfaces (explicit, mirrors the :root defaults) */
+/* Dark mode — pure black background, white buttons & accents */
 [data-theme='dark'] {
-  --bg: #0f0f0f;
-  --surface: #212121;
-  --surface-raised: #272727;
-  --border: #3f3f3f;
-  --text: #f1f1f1;
-  --text-muted: #aaaaaa;
-  --accent: #ff0000;
-  --accent-hover: #ff4d4d;
-  --toggle-track: #3f3f3f;
-  --toggle-border: #4d4d4d;
-  --toggle-tick: #6b6b6b;
+  --bg: #000000;
+  --surface: #121212;
+  --surface-raised: #181818;
+  --border: #27272a;
+  --text: #ffffff;
+  --text-muted: #a1a1aa;
+  --accent: #ffffff;
+  --accent-hover: #e4e4e7;
+  --accent-contrast: #000000;
+  --btn-bg: #ffffff;
+  --btn-text: #000000;
+  --toggle-track: #27272a;
+  --toggle-border: #3f3f46;
+  --toggle-tick: #a1a1aa;
 }
 
 * {

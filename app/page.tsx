@@ -4,25 +4,11 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { dashboardPath, readSession } from '@/lib/session';
 
-/**
- * Veil — landing page (app/page.tsx)
- *
- * Drop this in at app/page.tsx. It assumes the theme system already wired
- * in this project: `data-theme="dark" | "light"` set on <html>, with CSS
- * variables --bg, --surface, --border, --text, --text-muted, --accent
- * defined globally (as built in ThemeContext/globals.css). Every color
- * below falls back to a sane default via var(--token, fallback) so the
- * page still renders correctly even before those variables load.
- *
- * No external deps — motion is IntersectionObserver + CSS, so it doesn't
- * depend on framer-motion or any font not already loaded by the project.
- */
-
 const FLOW_STEPS = [
   {
     code: '01',
-    label: 'Request',
-    detail: 'Agent calls GET /api/premium-data.',
+    label: 'Browse',
+    detail: 'Pick your GPU tier & session length.',
   },
   {
     code: '02',
@@ -32,67 +18,45 @@ const FLOW_STEPS = [
   {
     code: '03',
     label: 'Pay',
-    detail: 'Agent signs and settles payment on Algorand.',
+    detail: 'Agent/User settles USDC payment on Algorand.',
   },
   {
     code: '04',
-    label: 'Capability',
-    detail: 'Veil issues a scoped, quota-limited credential.',
+    label: 'Credential',
+    detail: 'HyperDeck mints an on-chain session capability.',
   },
   {
     code: '05',
-    label: 'Access',
-    detail: 'Agent retries with the capability — 200 OK.',
+    label: 'Connect',
+    detail: 'Stream full-power gaming & rendering instantly.',
   },
 ];
 
-const SECURITY_LAYERS = [
+const FEATURES = [
   {
-    title: 'Resource scope',
-    body: 'A capability is valid for exactly one resource — nothing else it could ask for.',
+    title: 'Instant Hardware Scaling',
+    body: 'No local GPU required. Stream up to RTX 4090 power directly to any web browser or screen.',
   },
   {
-    title: 'Action scope',
-    body: 'READ does not imply WRITE. Each permission is named, not assumed.',
+    title: 'Pay-Per-Session (x402)',
+    body: 'Zero monthly subscriptions. Pay only for the exact hours you rent using Algorand cryptocurrency.',
   },
   {
-    title: 'Quota',
-    body: 'Every capability carries a hard usage ceiling, decremented on each call.',
+    title: 'Cryptographic Session Auth',
+    body: 'Your session access is bound to a single-use disposable keypair verified against Algorand box storage.',
   },
   {
-    title: 'Expiry',
-    body: 'Access lapses automatically at a fixed round — no permanent keys, ever.',
+    title: 'Instant Admin Revocation',
+    body: 'Sessions can be cut on-chain immediately if security or policy violations occur.',
   },
   {
-    title: 'Nonce + signature',
-    body: 'Every request proves fresh possession, so an old signed call can’t be replayed.',
+    title: 'Reward Points per Hour',
+    body: 'Earn 10 points for every $1 spent. Redeem 100 points for free rental session discounts.',
   },
   {
-    title: 'Revocation',
-    body: 'The provider can cut access mid-session. The next call fails immediately.',
+    title: 'Community Rig Ratings',
+    body: 'User ratings and performance reviews ensure you get peak FPS and low latency every time.',
   },
-];
-
-const TEAM = [
-  {
-    role: 'Agent / x402',
-    focus: 'LLM integration, tool calls, 402 handling, payment + retry logic.',
-  },
-  {
-    role: 'Algorand / Contract',
-    focus: 'Capability fields, box storage, create / read / revoke, TestNet deploy.',
-  },
-  {
-    role: 'Web / Resource Server',
-    focus: 'Dashboard, capability cards, admin revoke, protected endpoint.',
-  },
-];
-
-const ROUTES = [
-  { path: '/login', label: 'Sign in' },
-  { path: '/agent', label: 'Agent dashboard' },
-  { path: '/capabilities', label: 'Capabilities' },
-  { path: '/admin', label: 'Admin' },
 ];
 
 function useRevealOnScroll() {
@@ -139,7 +103,6 @@ function Reveal({
   );
 }
 
-/** Types a single string out character-by-character once `start` is true. */
 function useTypewriter(text: string, speed = 40, start = true) {
   const [output, setOutput] = useState('');
 
@@ -158,10 +121,6 @@ function useTypewriter(text: string, speed = 40, start = true) {
   return output;
 }
 
-/**
- * Types out several lines in sequence — line 1 finishes, then line 2 starts,
- * and so on — used for the terminal transcript's "generating" effect.
- */
 function useTypewriterLines(lines: string[], speed = 16, start = true) {
   const [output, setOutput] = useState<string[]>(() => lines.map(() => ''));
   const [done, setDone] = useState(false);
@@ -190,95 +149,79 @@ function useTypewriterLines(lines: string[], speed = 16, start = true) {
       });
     }, speed);
     return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [start, speed]);
 
   return { lines: output, done };
 }
 
-const HERO_HEADLINE_PREFIX = 'Payment becomes ';
-const HERO_HEADLINE_ACCENT = 'authorization.';
+const HERO_HEADLINE_PREFIX = 'Rent a Rig. Pay with Crypto. ';
+const HERO_HEADLINE_ACCENT = 'Game at Full Power.';
 
 const TRANSCRIPT_LINE_DEFS = [
-  { text: 'GET /api/premium-data', className: 'line line--muted' },
+  { text: 'GET /api/sessions/connect?rig=rig-beast&hours=2', className: 'line line--muted' },
   { text: '402 Payment Required', className: 'line line--warn' },
-  { text: 'x402-pay: algorand · amount=0.05 ALGO', className: 'line line--muted' },
-  { text: 'retry with payment proof…', className: 'line line--muted' },
-  { text: '', className: 'line' },
-  { text: '200 OK', className: 'line line--ok' },
-  { text: '{ asset: "ALGO", price: 0.214, change24h: "+4.8%" }', className: 'line line--muted' },
+  { text: 'x402-pay: algorand · price=3.00 USDC', className: 'line line--muted' },
+  { text: 'settling payment on Algorand TestNet...', className: 'line line--muted' },
+  { text: '200 OK — Session Credential Issued', className: 'line line--ok' },
+  { text: '{ rig: "RTX 4090", fps: 240, status: "streaming", rdp: "rdp://hyperdesk.io/session/HD-908" }', className: 'line line--muted' },
 ];
-
-function useTranscriptTyping() {
-  const { ref, visible } = useRevealOnScroll();
-  const { lines: typed, done } = useTypewriterLines(
-    TRANSCRIPT_LINE_DEFS.map((l) => l.text),
-    16,
-    visible
-  );
-
-  return { ref, visible, typed, done };
-}
 
 export default function LandingPage() {
   const router = useRouter();
 
-  // Returning visitor with an existing demo session? Skip straight to their dashboard.
   useEffect(() => {
     const session = readSession();
     if (!session) return;
     router.replace(dashboardPath(session.role));
   }, [router]);
 
-  // Headline types itself out once, on load.
-  const typedHeadline = useTypewriter(HERO_HEADLINE_PREFIX + HERO_HEADLINE_ACCENT, 42, true);
+  const typedHeadline = useTypewriter(HERO_HEADLINE_PREFIX + HERO_HEADLINE_ACCENT, 35, true);
   const typedPrefix = typedHeadline.slice(0, HERO_HEADLINE_PREFIX.length);
   const typedAccent = typedHeadline.slice(HERO_HEADLINE_PREFIX.length);
   const headlineDone = typedHeadline.length >= HERO_HEADLINE_PREFIX.length + HERO_HEADLINE_ACCENT.length;
 
-  // Transcript "generates" once it scrolls into view.
-  const { ref: transcriptRef, visible: transcriptVisible, typed: transcriptLines, done: transcriptDone } =
-    useTranscriptTyping();
+  const { ref: transcriptRef, visible: transcriptVisible } = useRevealOnScroll();
+  const { lines: transcriptLines, done: transcriptDone } =
+    useTypewriterLines(TRANSCRIPT_LINE_DEFS.map((l) => l.text), 16, transcriptVisible);
+
 
   return (
-    <main className="veil-landing">
+    <main className="novadeck-landing">
       {/* ---------- HERO ---------- */}
       <section className="hero">
         <div className="hero__inner">
-          <p className="eyebrow">AGENTIC ACCESS · x402 + ALGORAND</p>
+          <p className="eyebrow">⚡ HYPERDESK · CLOUD RIG RENTALS</p>
           <h1 className="hero__headline">
             {typedPrefix}
             <span className="accent-text">{typedAccent}</span>
             {!headlineDone && <span className="caret" aria-hidden="true" />}
           </h1>
           <p className="hero__sub">
-            Veil is an economic authorization layer for autonomous AI agents.
-            An agent requests a paid resource, pays for it automatically over
-            x402 on Algorand, and receives a temporary, scoped, revocable
-            capability — not a long-lived API key.
+            HyperDesk grants on-demand access to high-performance virtual PCs.
+            Choose your GPU specs, pay per session with x402 on Algorand, and stream
+            RTX 4090 power directly to your browser.
           </p>
           <div className="hero__cta">
-            <a className="btn btn--ghost" href="/login">
-              Sign in
+            <a className="btn btn--primary" href="/rigs">
+              Browse Rigs
             </a>
-            <a className="btn btn--primary" href="/login?mode=signup">
-              Sign up
+            <a className="btn btn--ghost" href="/login">
+              Sign In
             </a>
           </div>
         </div>
 
-        {/* Signature element: a live HTTP transcript that "generates" on scroll-into-view */}
         <div
           ref={transcriptRef as React.RefObject<HTMLDivElement>}
           className={`transcript-wrap reveal ${transcriptVisible ? 'reveal--visible' : ''}`}
           style={{ transitionDelay: '120ms' }}
         >
-          <div className="transcript" role="group" aria-label="Veil request lifecycle">
+          <div className="transcript">
             <div className="transcript__bar">
               <span className="dot dot--red" />
               <span className="dot dot--amber" />
               <span className="dot dot--green" />
-              <span className="transcript__title">agent → /api/premium-data</span>
+              <span className="transcript__title">HyperDesk Session Stream</span>
             </div>
             <pre className="transcript__body">
               <code>
@@ -299,20 +242,20 @@ export default function LandingPage() {
       <Reveal className="stats">
         <div className="stats__grid">
           <div className="stat">
-            <span className="stat__num">1</span>
-            <span className="stat__label">payment → capability, atomically</span>
+            <span className="stat__num">3</span>
+            <span className="stat__label">rig tiers (RTX 3060 to 4090)</span>
           </div>
           <div className="stat">
-            <span className="stat__num">5</span>
-            <span className="stat__label">request quota per capability</span>
+            <span className="stat__num">x402</span>
+            <span className="stat__label">native crypto pay-per-session</span>
           </div>
           <div className="stat">
-            <span className="stat__num">30m</span>
-            <span className="stat__label">default expiry window</span>
+            <span className="stat__num">100%</span>
+            <span className="stat__label">on-chain capability security</span>
           </div>
           <div className="stat">
-            <span className="stat__num">1-click</span>
-            <span className="stat__label">revoke, enforced on next request</span>
+            <span className="stat__num">10 pts</span>
+            <span className="stat__label">reward points earned per $1</span>
           </div>
         </div>
       </Reveal>
@@ -320,8 +263,8 @@ export default function LandingPage() {
       {/* ---------- FLOW ---------- */}
       <section className="flow">
         <Reveal>
-          <p className="section-eyebrow">How a request becomes access</p>
-          <h2 className="section-title">Five steps, no standing keys</h2>
+          <p className="section-eyebrow">How It Works</p>
+          <h2 className="section-title">Five steps to cloud gaming freedom</h2>
         </Reveal>
         <div className="flow__strip">
           {FLOW_STEPS.map((step, i) => (
@@ -337,59 +280,48 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ---------- SECURITY / FEATURES ---------- */}
-      <section className="security">
+      {/* ---------- RIG TIERS PREVIEW ---------- */}
+      <section className="rig-preview-section">
         <Reveal>
-          <p className="section-eyebrow">Blast-radius, not buzzwords</p>
-          <h2 className="section-title">
-            Every capability is narrow, temporary, and revocable
-          </h2>
+          <p className="section-eyebrow">Rig Fleet</p>
+          <h2 className="section-title">Choose your power tier</h2>
         </Reveal>
-        <div className="security__grid">
-          {SECURITY_LAYERS.map((layer, i) => (
-            <Reveal key={layer.title} delay={i * 60} className="security__card">
-              <h3>{layer.title}</h3>
-              <p>{layer.body}</p>
-            </Reveal>
-          ))}
+        <div className="rig-preview-grid">
+          <Reveal delay={100} className="preview-card">
+            <span className="preview-badge">STARTER</span>
+            <h3>Starter Rig</h3>
+            <p className="preview-spec">RTX 3060 12GB · Ryzen 5 5600X · 16GB RAM</p>
+            <div className="preview-price">$0.50 <span>/ hr</span></div>
+            <a href="/rigs" className="btn-preview">Rent Starter</a>
+          </Reveal>
+          <Reveal delay={200} className="preview-card preview-card--featured">
+            <span className="preview-badge preview-badge--accent">MOST POPULAR</span>
+            <h3>Pro Rig</h3>
+            <p className="preview-spec">RTX 4070 Ti 12GB · i9-13900K · 32GB RAM</p>
+            <div className="preview-price">$1.50 <span>/ hr</span></div>
+            <a href="/rigs" className="btn-preview btn-preview--accent">Rent Pro</a>
+          </Reveal>
+          <Reveal delay={300} className="preview-card">
+            <span className="preview-badge">BEAST</span>
+            <h3>Beast Rig</h3>
+            <p className="preview-spec">RTX 4090 24GB · Ryzen 9 7950X · 64GB RAM</p>
+            <div className="preview-price">$3.00 <span>/ hr</span></div>
+            <a href="/rigs" className="btn-preview">Rent Beast</a>
+          </Reveal>
         </div>
       </section>
 
-      {/* ---------- PIPELINE ---------- */}
-      <section className="pipeline">
+      {/* ---------- FEATURES ---------- */}
+      <section className="security">
         <Reveal>
-          <p className="section-eyebrow">System architecture</p>
-          <h2 className="section-title">One path, four layers</h2>
+          <p className="section-eyebrow">Why HyperDesk</p>
+          <h2 className="section-title">Built for speed, backed by Algorand</h2>
         </Reveal>
-        <Reveal className="pipeline__diagram" delay={100}>
-          {[
-            'Browser UI — agent dashboard, capabilities, admin revoke',
-            'Node.js / TypeScript — orchestrator, x402 client, capability service',
-            'Algorand TestNet — payment settlement + capability box state',
-            'Protected resource — GET /api/premium-data',
-          ].map((layer, i, arr) => (
-            <div className="pipeline__row" key={layer}>
-              <div className="pipeline__node">
-                <span className="pipeline__index">{i + 1}</span>
-                <span className="pipeline__text">{layer}</span>
-              </div>
-              {i < arr.length - 1 && <span className="pipeline__arrow">↓</span>}
-            </div>
-          ))}
-        </Reveal>
-      </section>
-
-      {/* ---------- TEAM ---------- */}
-      <section className="team">
-        <Reveal>
-          <p className="section-eyebrow">Built by three people, in one week</p>
-          <h2 className="section-title">Who owns what</h2>
-        </Reveal>
-        <div className="team__grid">
-          {TEAM.map((member, i) => (
-            <Reveal key={member.role} delay={i * 80} className="team__card">
-              <h3>{member.role}</h3>
-              <p>{member.focus}</p>
+        <div className="security__grid">
+          {FEATURES.map((feat, i) => (
+            <Reveal key={feat.title} delay={i * 60} className="security__card">
+              <h3>{feat.title}</h3>
+              <p>{feat.body}</p>
             </Reveal>
           ))}
         </div>
@@ -398,24 +330,22 @@ export default function LandingPage() {
       {/* ---------- FOOTER ---------- */}
       <footer className="footer">
         <div className="footer__top">
-          <span className="footer__brand">Veil</span>
+          <span className="footer__brand">HyperDesk</span>
           <nav className="footer__routes">
-            {ROUTES.map((r) => (
-              <a key={r.path} href={r.path}>
-                {r.label}
-              </a>
-            ))}
+            <a href="/rigs">Browse Rigs</a>
+            <a href="/sessions">My Sessions</a>
+            <a href="/rewards">Rewards</a>
+            <a href="/login">Sign In</a>
+            <a href="/admin">Admin Console</a>
           </nav>
         </div>
         <p className="footer__note">
-          Agentic access to paid digital resources, using x402 on Algorand.
-          Payment becomes authorization: temporary, scoped, quota-limited,
-          revocable.
+          HyperDesk — Instant Cloud PC rentals powered by x402 payments on Algorand.
         </p>
       </footer>
 
       <style jsx>{`
-        .veil-landing {
+        .novadeck-landing {
           --bg: var(--bg, #0f0f0f);
           --surface: var(--surface, #181818);
           --border: var(--border, #303030);
@@ -424,51 +354,30 @@ export default function LandingPage() {
           --accent: var(--accent, #ff0000);
           background: var(--bg);
           color: var(--text);
-          font-family: var(--font-sans, 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif);
+          font-family: system-ui, -apple-system, sans-serif;
           overflow-x: hidden;
         }
-
-        .accent-text {
-          color: var(--accent);
-        }
-
-        .eyebrow,
-        .section-eyebrow {
+        .accent-text { color: var(--accent); }
+        .eyebrow, .section-eyebrow {
           font-size: 0.78rem;
           letter-spacing: 0.14em;
           text-transform: uppercase;
           color: var(--accent);
-          font-weight: 600;
+          font-weight: 700;
           margin: 0 0 12px;
         }
-
         .section-title {
           font-size: clamp(1.5rem, 3vw, 2.15rem);
-          font-weight: 500;
+          font-weight: 700;
           line-height: 1.25;
           margin: 0 0 40px;
-          max-width: 640px;
         }
-
-        /* ---------- Reveal-on-scroll ---------- */
         .reveal {
           opacity: 0;
           transform: translateY(18px);
           transition: opacity 0.6s ease, transform 0.6s ease;
         }
-        .reveal--visible {
-          opacity: 1;
-          transform: translateY(0);
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .reveal {
-            opacity: 1;
-            transform: none;
-            transition: none;
-          }
-        }
-
-        /* ---------- Hero ---------- */
+        .reveal--visible { opacity: 1; transform: translateY(0); }
         .hero {
           display: grid;
           grid-template-columns: 1.1fr 0.9fr;
@@ -478,78 +387,51 @@ export default function LandingPage() {
           margin: 0 auto;
           padding: 96px 32px 72px;
         }
+        @media (max-width: 900px) {
+          .hero { grid-template-columns: 1fr; gap: 36px; padding-top: 48px; }
+        }
         .hero__headline {
-          font-size: clamp(2.2rem, 5vw, 3.4rem);
-          line-height: 1.08;
-          font-weight: 500;
-          letter-spacing: -0.01em;
+          font-size: clamp(2.2rem, 4.5vw, 3.2rem);
+          line-height: 1.1;
+          font-weight: 800;
           margin: 0 0 22px;
         }
         .hero__sub {
           color: var(--text-muted);
           font-size: 1.05rem;
           line-height: 1.65;
-          max-width: 46ch;
           margin: 0 0 32px;
         }
-        .hero__cta {
-          display: flex;
-          gap: 14px;
-          flex-wrap: wrap;
-        }
+        .hero__cta { display: flex; gap: 14px; }
         .btn {
           display: inline-flex;
           align-items: center;
-          padding: 12px 22px;
+          padding: 12px 26px;
           border-radius: 999px;
-          font-size: 0.92rem;
-          font-weight: 500;
+          font-size: 0.95rem;
+          font-weight: 700;
           text-decoration: none;
-          transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+          transition: transform 0.15s ease, background 0.15s ease;
         }
-        .btn--primary {
-          background: var(--accent, #ff0000);
-          color: #fff;
-        }
-        .btn--primary:hover {
-          background: var(--accent-hover, #cc0000);
-          transform: translateY(-1px);
-        }
-        .btn--ghost {
-          background: transparent;
-          color: var(--text, #0f0f0f);
-          border: 1px solid var(--border, #e5e5e5);
-        }
-        .btn--ghost:hover {
-          border-color: var(--accent, #ff0000);
-        }
+        .btn--primary { background: var(--btn-bg); color: var(--btn-text); }
+        .btn--primary:hover { transform: translateY(-2px); opacity: 0.9; }
+        .btn--ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+        .btn--ghost:hover { border-color: var(--accent); }
         .caret {
           display: inline-block;
           width: 2px;
-          height: 0.95em;
+          height: 0.9em;
           margin-left: 3px;
-          vertical-align: -0.12em;
           background: currentColor;
           animation: caret-blink 1s step-end infinite;
         }
-        @keyframes caret-blink {
-          50% {
-            opacity: 0;
-          }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .caret {
-            animation: none;
-          }
-        }
-
-        /* ---------- Transcript (signature element) ---------- */
+        @keyframes caret-blink { 50% { opacity: 0; } }
         .transcript {
           background: var(--surface);
           border: 1px solid var(--border);
           border-radius: 14px;
           overflow: hidden;
-          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
         }
         .transcript__bar {
           display: flex;
@@ -558,72 +440,16 @@ export default function LandingPage() {
           padding: 12px 16px;
           border-bottom: 1px solid var(--border);
         }
-        .dot {
-          width: 10px;
-          height: 10px;
-          border-radius: 50%;
-          display: inline-block;
-        }
-        .dot--red {
-          background: #ff5f57;
-        }
-        .dot--amber {
-          background: #febc2e;
-        }
-        .dot--green {
-          background: #28c840;
-        }
-        .transcript__title {
-          margin-left: 8px;
-          font-size: 0.78rem;
-          color: var(--text-muted);
-          font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-        }
-        .transcript__body {
-          margin: 0;
-          padding: 20px 18px;
-          font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-          font-size: 0.85rem;
-          line-height: 1.9;
-          min-height: 168px;
-        }
-        .line--muted {
-          color: var(--text-muted);
-        }
-        .line--warn {
-          color: #febc2e;
-          font-weight: 600;
-        }
-        .line--ok {
-          color: #3ddc84;
-          font-weight: 600;
-        }
-        .line--err {
-          color: var(--accent);
-          font-weight: 600;
-        }
-        .transcript__toggle {
-          width: 100%;
-          padding: 13px;
-          background: transparent;
-          border: none;
-          border-top: 1px solid var(--border);
-          color: var(--accent);
-          font-size: 0.85rem;
-          font-weight: 600;
-          cursor: pointer;
-          transition: background 0.15s ease;
-        }
-        .transcript__toggle:hover {
-          background: rgba(255, 0, 0, 0.08);
-        }
-
-        /* ---------- Stats ---------- */
-        .stats {
-          border-top: 1px solid var(--border);
-          border-bottom: 1px solid var(--border);
-          background: var(--surface);
-        }
+        .dot { width: 10px; height: 10px; border-radius: 50%; }
+        .dot--red { background: #ff5f57; }
+        .dot--amber { background: #febc2e; }
+        .dot--green { background: #28c840; }
+        .transcript__title { margin-left: 8px; font-size: 0.78rem; color: var(--text-muted); font-family: monospace; }
+        .transcript__body { margin: 0; padding: 20px 18px; font-family: monospace; font-size: 0.82rem; line-height: 1.8; }
+        .line--muted { color: var(--text-muted); }
+        .line--warn { color: #febc2e; font-weight: 600; }
+        .line--ok { color: #3ddc84; font-weight: 600; }
+        .stats { border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); background: var(--surface); }
         .stats__grid {
           max-width: 1180px;
           margin: 0 auto;
@@ -632,259 +458,65 @@ export default function LandingPage() {
           grid-template-columns: repeat(4, 1fr);
           gap: 24px;
         }
-        .stat {
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-        }
-        .stat__num {
-          font-size: 2rem;
-          font-weight: 600;
-          color: var(--accent);
-        }
-        .stat__label {
-          font-size: 0.85rem;
-          color: var(--text-muted);
-          line-height: 1.4;
-        }
-
-        /* ---------- Flow ---------- */
-        .flow {
-          max-width: 1180px;
-          margin: 0 auto;
-          padding: 88px 32px;
-        }
-        .flow__strip {
-          display: flex;
-          align-items: stretch;
-          gap: 0;
-          flex-wrap: wrap;
-        }
-        .flow__step-wrap {
-          display: flex;
-          align-items: center;
-          flex: 1 1 180px;
-        }
-        .flow__step {
+        @media (max-width: 700px) { .stats__grid { grid-template-columns: repeat(2, 1fr); } }
+        .stat__num { font-size: 2rem; font-weight: 800; color: var(--text); }
+        .stat__label { font-size: 0.85rem; color: var(--text-muted); }
+        .flow { max-width: 1180px; margin: 0 auto; padding: 88px 32px; }
+        .flow__strip { display: flex; gap: 12px; flex-wrap: wrap; }
+        .flow__step-wrap { flex: 1 1 180px; }
+        .flow__step { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 22px 18px; min-height: 140px; }
+        .flow__code { font-family: monospace; font-size: 0.75rem; color: var(--text); font-weight: 700; }
+        .flow__label { font-size: 1.05rem; font-weight: 700; margin: 8px 0 6px; }
+        .flow__detail { font-size: 0.85rem; color: var(--text-muted); margin: 0; }
+        .rig-preview-section { max-width: 1180px; margin: 0 auto; padding: 0 32px 88px; }
+        .rig-preview-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+        @media (max-width: 900px) { .rig-preview-grid { grid-template-columns: 1fr; } }
+        .preview-card {
           background: var(--surface);
           border: 1px solid var(--border);
-          border-radius: 12px;
-          padding: 22px 18px;
-          flex: 1;
-          min-height: 150px;
-        }
-        .flow__code {
-          font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-          font-size: 0.75rem;
-          color: var(--accent);
-          font-weight: 700;
-        }
-        .flow__label {
-          font-size: 1.05rem;
-          font-weight: 600;
-          margin: 8px 0 6px;
-        }
-        .flow__detail {
-          font-size: 0.85rem;
-          color: var(--text-muted);
-          line-height: 1.5;
-          margin: 0;
-        }
-        .flow__connector {
-          width: 24px;
-          height: 1px;
-          background: var(--border);
-          flex-shrink: 0;
-          margin: 0 4px;
-          align-self: center;
-        }
-        @media (max-width: 900px) {
-          .flow__connector {
-            display: none;
-          }
-        }
-
-        /* ---------- Security grid ---------- */
-        .security {
-          background: var(--surface);
-          border-top: 1px solid var(--border);
-          border-bottom: 1px solid var(--border);
-        }
-        .security__grid {
-          max-width: 1180px;
-          margin: 0 auto;
-          padding: 0 32px 88px;
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 20px;
-        }
-        .security > :global(.reveal:first-child) {
-          padding: 88px 32px 0;
-          max-width: 1180px;
-          margin: 0 auto;
-        }
-        .security__card {
-          background: var(--bg);
-          border: 1px solid var(--border);
-          border-radius: 12px;
-          padding: 22px;
-        }
-        .security__card h3 {
-          font-size: 1rem;
-          font-weight: 600;
-          margin: 0 0 8px;
-        }
-        .security__card p {
-          font-size: 0.87rem;
-          color: var(--text-muted);
-          line-height: 1.55;
-          margin: 0;
-        }
-
-        /* ---------- Pipeline ---------- */
-        .pipeline {
-          max-width: 900px;
-          margin: 0 auto;
-          padding: 88px 32px;
-        }
-        .pipeline__diagram {
+          border-radius: 16px;
+          padding: 28px;
           display: flex;
           flex-direction: column;
-          align-items: stretch;
+          gap: 12px;
+          position: relative;
         }
-        .pipeline__row {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-        }
-        .pipeline__node {
-          width: 100%;
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          background: var(--surface);
+        .preview-card--featured { border-color: var(--accent); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2); }
+        .preview-badge { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); letter-spacing: 0.1em; }
+        .preview-badge--accent { color: var(--text); }
+        .preview-spec { color: var(--text-muted); font-size: 0.85rem; margin: 0; }
+        .preview-price { font-size: 1.8rem; font-weight: 800; color: var(--text); margin-top: auto; }
+        .preview-price span { font-size: 0.9rem; color: var(--text-muted); }
+        .btn-preview {
+          display: block;
+          text-align: center;
+          background: transparent;
           border: 1px solid var(--border);
-          border-radius: 10px;
-          padding: 16px 18px;
-        }
-        .pipeline__index {
-          font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-          font-size: 0.8rem;
-          color: var(--accent);
-          font-weight: 700;
-          flex-shrink: 0;
-        }
-        .pipeline__text {
-          font-size: 0.92rem;
           color: var(--text);
-        }
-        .pipeline__arrow {
-          color: var(--text-muted);
-          padding: 6px 0;
-        }
-
-        /* ---------- Team ---------- */
-        .team {
-          background: var(--surface);
-          border-top: 1px solid var(--border);
-          padding: 88px 32px;
-        }
-        .team__grid {
-          max-width: 1180px;
-          margin: 0 auto;
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 20px;
-        }
-        .team__card {
-          background: var(--bg);
-          border: 1px solid var(--border);
-          border-radius: 12px;
-          padding: 24px;
-        }
-        .team__card h3 {
-          font-size: 1rem;
-          font-weight: 600;
-          margin: 0 0 8px;
-          color: var(--accent);
-        }
-        .team__card p {
-          font-size: 0.87rem;
-          color: var(--text-muted);
-          line-height: 1.55;
-          margin: 0;
-        }
-
-        /* ---------- Footer ---------- */
-        .footer {
-          max-width: 1180px;
-          margin: 0 auto;
-          padding: 56px 32px 64px;
-        }
-        .footer__top {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          flex-wrap: wrap;
-          gap: 16px;
-          padding-bottom: 24px;
-          border-bottom: 1px solid var(--border);
-        }
-        .footer__brand {
-          font-size: 1.1rem;
-          font-weight: 700;
-        }
-        .footer__routes {
-          display: flex;
-          gap: 22px;
-          flex-wrap: wrap;
-        }
-        .footer__routes a {
-          color: var(--text-muted);
+          padding: 10px;
+          border-radius: 8px;
           text-decoration: none;
-          font-size: 0.88rem;
+          font-weight: 700;
+          font-size: 0.9rem;
+          transition: all 0.15s ease;
         }
-        .footer__routes a:hover {
-          color: var(--accent);
-        }
-        .footer__note {
-          margin: 22px 0 0;
-          font-size: 0.82rem;
-          color: var(--text-muted);
-          max-width: 60ch;
-          line-height: 1.6;
-        }
+        .btn-preview:hover { border-color: var(--accent); }
+        .btn-preview--accent { background: var(--btn-bg); color: var(--btn-text); border: none; }
+        .btn-preview--accent:hover { opacity: 0.9; }
+        .security { background: var(--surface); border-top: 1px solid var(--border); padding: 88px 32px; }
+        .security__grid { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+        @media (max-width: 900px) { .security__grid { grid-template-columns: 1fr; } }
+        .security__card { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 22px; }
+        .security__card h3 { font-size: 1rem; font-weight: 700; margin: 0 0 8px; }
+        .security__card p { font-size: 0.87rem; color: var(--text-muted); margin: 0; line-height: 1.5; }
+        .footer { max-width: 1180px; margin: 0 auto; padding: 60px 32px; border-top: 1px solid var(--border); }
+        .footer__top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .footer__brand { font-size: 1.3rem; font-weight: 800; color: var(--text); }
+        .footer__routes { display: flex; gap: 20px; }
+        .footer__routes a { color: var(--text-muted); text-decoration: none; font-size: 0.88rem; }
+        .footer__routes a:hover { color: var(--text); }
+        .footer__note { color: var(--text-muted); font-size: 0.82rem; margin: 0; }
 
-        /* ---------- Responsive ---------- */
-        @media (max-width: 900px) {
-          .hero {
-            grid-template-columns: 1fr;
-            padding: 64px 20px 48px;
-          }
-          .stats__grid {
-            grid-template-columns: repeat(2, 1fr);
-            padding: 32px 20px;
-          }
-          .security__grid,
-          .team__grid {
-            grid-template-columns: 1fr;
-            padding-left: 20px;
-            padding-right: 20px;
-          }
-          .security > :global(.reveal:first-child) {
-            padding-left: 20px;
-            padding-right: 20px;
-          }
-          .flow {
-            padding: 64px 20px;
-          }
-          .pipeline {
-            padding: 64px 20px;
-          }
-          .team {
-            padding: 64px 20px;
-          }
-        }
       `}</style>
     </main>
   );

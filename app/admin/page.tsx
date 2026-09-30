@@ -6,11 +6,10 @@ import { clearSession, dashboardPath, readSession, type Session } from '@/lib/se
 
 type CapStatus = 'active' | 'revoked' | 'expired'
 
-// Shape returned by GET /api/capabilities (joined with agents)
 type ApiCapability = {
   credential_id: string
   resource_id: string
-  action: 'READ' | 'WRITE'
+  action: string
   quota: number
   quota_used: number
   expiry_at: string | null
@@ -24,10 +23,10 @@ type Capability = {
   credentialId: string
   agentHandle: string
   resource: string
-  action: 'READ' | 'WRITE'
+  action: string
   quotaUsed: number
   quotaTotal: number
-  expiresAt: number | null // epoch ms, null if no expiry
+  expiresAt: number | null
   status: CapStatus
   payment: number
 }
@@ -39,14 +38,14 @@ function toCapability(row: ApiCapability): Capability {
 
   return {
     credentialId: row.credential_id,
-    agentHandle: row.agents?.name ?? 'unknown',
+    agentHandle: row.agents?.name ?? 'HyperDeck User',
     resource: row.resource_id,
-    action: row.action,
-    quotaUsed: row.quota_used,
-    quotaTotal: row.quota,
+    action: row.action || 'CONNECT',
+    quotaUsed: row.quota_used || 0,
+    quotaTotal: row.quota || 10,
     expiresAt,
     status,
-    payment: 0, // Placeholder: Currently payment is not stored in local DB
+    payment: 0.50,
   }
 }
 
@@ -54,10 +53,11 @@ export default function AdminDashboard() {
   const router = useRouter()
   const [session, setSession] = useState<Session | null>(null)
   const [caps, setCaps] = useState<Capability[]>([])
+  const [rigs, setRigs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
-  const [, forceTick] = useState(0) // re-render every second to update countdowns
+  const [, forceTick] = useState(0)
 
   useEffect(() => {
     const parsed = readSession()
@@ -72,18 +72,22 @@ export default function AdminDashboard() {
     setSession(parsed)
   }, [router])
 
-  async function loadCapabilities() {
+  async function loadData() {
     try {
       const res = await fetch('/api/capabilities')
       const json = await res.json()
-      if (!res.ok) {
-        setLoadError(json.error ?? 'Failed to load capabilities')
-        return
+      if (res.ok) {
+        setCaps((json.capabilities as ApiCapability[]).map(toCapability))
       }
-      setCaps((json.capabilities as ApiCapability[]).map(toCapability))
+
+      const rigRes = await fetch('/api/rigs')
+      const rigJson = await rigRes.json()
+      if (rigRes.ok) {
+        setRigs(rigJson.rigs || [])
+      }
       setLoadError(null)
     } catch (err) {
-      setLoadError('Network error loading capabilities')
+      setLoadError('Network error loading admin data')
     } finally {
       setLoading(false)
     }
@@ -91,21 +95,19 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (!session) return
-    loadCapabilities()
-    const poll = setInterval(loadCapabilities, 15000) // refresh from DB every 15s
+    loadData()
+    const poll = setInterval(loadData, 15000)
     return () => clearInterval(poll)
   }, [session])
 
-  // Tick every second just to re-render countdowns; doesn't refetch.
   useEffect(() => {
     const t = setInterval(() => forceTick((n) => n + 1), 1000)
     return () => clearInterval(t)
   }, [])
 
   async function revoke(credentialId: string) {
-    const target = caps.find((c) => c.credentialId === credentialId)
     try {
-      const res = await fetch(`/api/capabilities/${credentialId}/revoke`, { method: 'POST' })
+      const res = await fetch(`/api/sessions/${credentialId}/revoke`, { method: 'POST' })
       const json = await res.json()
       if (!res.ok) {
         setToast(`Failed to revoke: ${json.error ?? 'unknown error'}`)
@@ -115,10 +117,10 @@ export default function AdminDashboard() {
       setCaps((prev) =>
         prev.map((c) => (c.credentialId === credentialId ? { ...c, status: 'revoked' } : c))
       )
-      setToast(`Revoked ${credentialId} — ${target?.agentHandle}'s next request will return 403.`)
+      setToast(`Session ${credentialId} terminated. User disconnected.`)
       setTimeout(() => setToast(null), 3500)
     } catch {
-      setToast('Network error revoking capability')
+      setToast('Network error ending session')
       setTimeout(() => setToast(null), 3500)
     }
   }
@@ -136,57 +138,91 @@ export default function AdminDashboard() {
 
   const statusMeta: Record<CapStatus, { label: string; tone: 'ok' | 'err' | 'muted' }> = {
     active: { label: 'ACTIVE', tone: 'ok' },
-    revoked: { label: 'REVOKED', tone: 'err' },
+    revoked: { label: 'ENDED', tone: 'err' },
     expired: { label: 'EXPIRED', tone: 'muted' },
   }
 
   return (
     <div className="shell">
       <aside className="sidebar">
-        <div className="sidebar__brand">Veil</div>
-        <div className="sidebar__role">Admin / Provider</div>
+        <div className="sidebar__brand">HyperDesk</div>
+        <div className="sidebar__role">Admin / Fleet Console</div>
         <button className="sidebar__logout" onClick={handleLogout}>
-          Sign out
+          Sign Out
         </button>
       </aside>
 
       <main className="main">
         <header className="topbar">
           <div>
-            <p className="topbar__eyebrow">VEIL · PROVIDER CONSOLE</p>
+            <p className="topbar__eyebrow">HYPERDESK · FLEET CONSOLE</p>
             <h1>
               Welcome, <span className="accent-text">{session.handle}</span>
             </h1>
           </div>
           <div className="topbar__status">
             <span className="dot dot--ok" />
-            Algorand Connected
+            Algorand TestNet Connected
           </div>
         </header>
 
         <div className="stats-row">
           <div className="stat-card">
             <span className="stat-card__num">{activeCount}</span>
-            <span className="stat-card__label">active capabilities</span>
+            <span className="stat-card__label">Active Sessions</span>
           </div>
           <div className="stat-card">
             <span className="stat-card__num">{caps.length}</span>
-            <span className="stat-card__label">total issued</span>
+            <span className="stat-card__label">Total Sessions</span>
           </div>
           <div className="stat-card">
-            <span className="stat-card__num">{totalPaid.toFixed(2)}</span>
-            <span className="stat-card__label">ALGO collected</span>
+            <span className="stat-card__num">{rigs.length}</span>
+            <span className="stat-card__label">Rig Fleet Tiers</span>
           </div>
           <div className="stat-card">
             <span className="stat-card__num">{revokedCount}</span>
-            <span className="stat-card__label">revoked</span>
+            <span className="stat-card__label">Terminated</span>
           </div>
         </div>
 
+        {/* Rig Fleet Section */}
         <section className="card">
-          <h2 className="card__title">Active Capabilities</h2>
+          <h2 className="card__title">Cloud Rig Fleet Status</h2>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Rig ID</th>
+                  <th>Name</th>
+                  <th>GPU</th>
+                  <th>CPU</th>
+                  <th>Price / hr</th>
+                  <th>Slots Free</th>
+                  <th>Rating</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rigs.map((r) => (
+                  <tr key={r.id}>
+                    <td className="mono">{r.id}</td>
+                    <td>{r.name}</td>
+                    <td>{r.gpu}</td>
+                    <td>{r.cpu}</td>
+                    <td>${r.pricePerHour.toFixed(2)}</td>
+                    <td>{r.availableSlots} / {r.totalSlots}</td>
+                    <td>★ {r.avgRating} ({r.ratingCount})</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
 
-          {loading && <p className="muted-note">Loading capabilities…</p>}
+        {/* Sessions Section */}
+        <section className="card">
+          <h2 className="card__title">Live User Sessions</h2>
+
+          {loading && <p className="muted-note">Loading session telemetry...</p>}
           {loadError && <p className="error-note">{loadError}</p>}
 
           {!loading && !loadError && (
@@ -194,58 +230,42 @@ export default function AdminDashboard() {
               <table className="table">
                 <thead>
                   <tr>
-                    <th>Credential</th>
-                    <th>Agent</th>
-                    <th>Resource</th>
+                    <th>Credential ID</th>
+                    <th>User / Agent</th>
+                    <th>Rig ID</th>
                     <th>Action</th>
-                    <th>Quota</th>
-                    <th>Expires</th>
                     <th>Status</th>
-                    <th></th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {caps.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="empty-cell">
-                        No capabilities on chain yet. This list stays empty until payment
-                        atomically mints a grant — revoke will call the contract, not local state.
+                      <td colSpan={6} className="empty-cell">
+                        No active sessions on Algorand box storage yet.
                       </td>
                     </tr>
                   ) : (
-                    caps.map((c) => {
-                      let expiryLabel = '—'
-                      if (c.status === 'active' && c.expiresAt !== null) {
-                        const remainingSec = Math.max(0, Math.floor((c.expiresAt - Date.now()) / 1000))
-                        const mins = Math.floor(remainingSec / 60)
-                        const secs = remainingSec % 60
-                        expiryLabel = `${mins}:${secs.toString().padStart(2, '0')}`
-                      }
-                      return (
-                        <tr key={c.credentialId}>
-                          <td className="mono">{c.credentialId}</td>
-                          <td>{c.agentHandle}</td>
-                          <td className="mono">{c.resource}</td>
-                          <td>{c.action}</td>
-                          <td>
-                            {c.quotaUsed} / {c.quotaTotal}
-                          </td>
-                          <td className="mono">{expiryLabel}</td>
-                          <td>
-                            <span className={`badge badge--${statusMeta[c.status].tone}`}>
-                              {statusMeta[c.status].label}
-                            </span>
-                          </td>
-                          <td>
-                            {c.status === 'active' && (
-                              <button className="btn btn--revoke-sm" onClick={() => revoke(c.credentialId)}>
-                                Revoke
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    })
+                    caps.map((c) => (
+                      <tr key={c.credentialId}>
+                        <td className="mono">{c.credentialId}</td>
+                        <td>{c.agentHandle}</td>
+                        <td className="mono">{c.resource}</td>
+                        <td>{c.action}</td>
+                        <td>
+                          <span className={`badge badge--${statusMeta[c.status].tone}`}>
+                            {statusMeta[c.status].label}
+                          </span>
+                        </td>
+                        <td>
+                          {c.status === 'active' && (
+                            <button className="btn btn--revoke-sm" onClick={() => revoke(c.credentialId)}>
+                              Kill Session
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))
                   )}
                 </tbody>
               </table>
@@ -261,16 +281,13 @@ export default function AdminDashboard() {
           display: grid;
           grid-template-columns: 220px 1fr;
           min-height: calc(100vh - 56px);
+          background: var(--bg);
+          color: var(--text);
         }
         @media (max-width: 800px) {
-          .shell {
-            grid-template-columns: 1fr;
-          }
+          .shell { grid-template-columns: 1fr; }
         }
-        .accent-text {
-          color: var(--accent);
-        }
-
+        .accent-text { color: var(--accent); }
         .sidebar {
           border-right: 1px solid var(--border);
           padding: 24px 14px;
@@ -278,17 +295,8 @@ export default function AdminDashboard() {
           flex-direction: column;
           gap: 12px;
         }
-        .sidebar__brand {
-          font-size: 1.1rem;
-          font-weight: 700;
-          padding: 0 10px;
-        }
-        .sidebar__role {
-          padding: 0 10px;
-          font-size: 0.8rem;
-          color: var(--text-muted);
-          flex: 1;
-        }
+        .sidebar__brand { font-size: 1.2rem; font-weight: 800; color: var(--accent); padding: 0 10px; }
+        .sidebar__role { padding: 0 10px; font-size: 0.8rem; color: var(--text-muted); flex: 1; }
         .sidebar__logout {
           border: 1px solid var(--border);
           background: transparent;
@@ -298,66 +306,17 @@ export default function AdminDashboard() {
           font-size: 0.85rem;
           cursor: pointer;
         }
-        .sidebar__logout:hover {
-          border-color: var(--accent);
-          color: var(--accent);
-        }
-
-        .main {
-          padding: 32px 28px 64px;
-          display: flex;
-          flex-direction: column;
-          gap: 20px;
-        }
-        .topbar {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-end;
-          flex-wrap: wrap;
-          gap: 12px;
-        }
-        .topbar__eyebrow {
-          font-size: 0.72rem;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-          color: var(--accent);
-          font-weight: 600;
-          margin: 0 0 6px;
-        }
-        h1 {
-          margin: 0;
-          font-size: 1.5rem;
-          font-weight: 600;
-        }
-        .topbar__status {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-size: 0.85rem;
-          color: var(--text-muted);
-        }
-        .dot {
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-          display: inline-block;
-        }
-        .dot--ok {
-          background: #3ddc84;
-        }
-
-        .stats-row {
-          display: grid;
-          grid-template-columns: repeat(4, 1fr);
-          gap: 16px;
-        }
-        @media (max-width: 700px) {
-          .stats-row {
-            grid-template-columns: repeat(2, 1fr);
-          }
-        }
+        .sidebar__logout:hover { border-color: var(--accent); color: var(--accent); }
+        .main { padding: 32px 28px 64px; display: flex; flex-direction: column; gap: 24px; }
+        .topbar { display: flex; justify-content: space-between; align-items: flex-end; }
+        .topbar__eyebrow { font-size: 0.72rem; letter-spacing: 0.12em; color: var(--accent); font-weight: 700; margin: 0 0 4px; }
+        h1 { margin: 0; font-size: 1.5rem; font-weight: 800; }
+        .topbar__status { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-muted); }
+        .dot { width: 8px; height: 8px; border-radius: 50%; }
+        .dot--ok { background: #3ddc84; }
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
         .stat-card {
-          background: var(--surface-raised, var(--surface));
+          background: var(--surface);
           border: 1px solid var(--border);
           border-radius: 12px;
           padding: 16px 18px;
@@ -365,124 +324,25 @@ export default function AdminDashboard() {
           flex-direction: column;
           gap: 4px;
         }
-        .stat-card__num {
-          font-size: 1.6rem;
-          font-weight: 700;
-          color: var(--accent);
-          font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-        }
-        .stat-card__label {
-          font-size: 0.78rem;
-          color: var(--text-muted);
-        }
-
-        .card {
-          background: var(--surface-raised, var(--surface));
-          border: 1px solid var(--border);
-          border-radius: 14px;
-          padding: 22px;
-        }
-        .card__title {
-          margin: 0 0 16px;
-          font-size: 1rem;
-          font-weight: 600;
-        }
-
-        .muted-note {
-          color: var(--text-muted);
-          font-size: 0.88rem;
-        }
-        .error-note {
-          color: var(--accent);
-          font-size: 0.88rem;
-        }
-
-        .table-wrap {
-          overflow-x: auto;
-        }
-        .table {
-          width: 100%;
-          border-collapse: collapse;
-          font-size: 0.85rem;
-        }
-        .table th {
-          text-align: left;
-          padding: 10px 12px;
-          font-size: 0.72rem;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-          color: var(--text-muted);
-          border-bottom: 1px solid var(--border);
-        }
-        .table td {
-          padding: 12px;
-          border-bottom: 1px solid var(--border);
-          vertical-align: middle;
-        }
-        .table tr:last-child td {
-          border-bottom: none;
-        }
-        .mono {
-          font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-          font-size: 0.82rem;
-        }
-        .empty-cell {
-          color: var(--text-muted);
-          padding: 28px 12px;
-          text-align: center;
-          line-height: 1.5;
-        }
-
-        .badge {
-          display: inline-flex;
-          padding: 4px 10px;
-          border-radius: 999px;
-          font-size: 0.72rem;
-          font-weight: 700;
-          letter-spacing: 0.03em;
-        }
-        .badge--ok {
-          background: rgba(61, 220, 132, 0.14);
-          color: #1f9d5c;
-        }
-        .badge--err {
-          background: color-mix(in srgb, var(--accent) 14%, transparent);
-          color: var(--accent);
-        }
-        .badge--muted {
-          background: color-mix(in srgb, var(--text-muted) 14%, transparent);
-          color: var(--text-muted);
-        }
-
-        .btn--revoke-sm {
-          padding: 6px 14px;
-          border-radius: 999px;
-          font-size: 0.78rem;
-          font-weight: 600;
-          border: 1px solid var(--accent);
-          background: transparent;
-          color: var(--accent);
-          cursor: pointer;
-          transition: background 0.15s ease, color 0.15s ease;
-        }
-        .btn--revoke-sm:hover {
-          background: var(--accent);
-          color: #fff;
-        }
-
-        .toast {
-          position: fixed;
-          bottom: 24px;
-          left: 50%;
-          transform: translateX(-50%);
-          background: var(--surface-raised, var(--surface));
-          border: 1px solid var(--border);
-          border-radius: 10px;
-          padding: 12px 20px;
-          font-size: 0.85rem;
-          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-          z-index: 60;
-        }
+        .stat-card__num { font-size: 1.6rem; font-weight: 800; color: var(--accent); font-family: monospace; }
+        .stat-card__label { font-size: 0.78rem; color: var(--text-muted); }
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 22px; }
+        .card__title { margin: 0 0 16px; font-size: 1rem; font-weight: 700; }
+        .muted-note { color: var(--text-muted); font-size: 0.88rem; }
+        .error-note { color: var(--accent); font-size: 0.88rem; }
+        .table-wrap { overflow-x: auto; }
+        .table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        .table th { text-align: left; padding: 10px 12px; font-size: 0.72rem; text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+        .table td { padding: 12px; border-bottom: 1px solid var(--border); }
+        .mono { font-family: monospace; font-size: 0.82rem; }
+        .empty-cell { color: var(--text-muted); padding: 28px 12px; text-align: center; }
+        .badge { display: inline-flex; padding: 4px 10px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; }
+        .badge--ok { background: rgba(61, 220, 132, 0.14); color: #1f9d5c; }
+        .badge--err { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+        .badge--muted { background: color-mix(in srgb, var(--text-muted) 14%, transparent); color: var(--text-muted); }
+        .btn--revoke-sm { padding: 6px 14px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; border: 1px solid var(--accent); background: transparent; color: var(--accent); cursor: pointer; }
+        .btn--revoke-sm:hover { background: var(--accent); color: #fff; }
+        .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 20px; font-size: 0.85rem; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); z-index: 60; }
       `}</style>
     </div>
   )
