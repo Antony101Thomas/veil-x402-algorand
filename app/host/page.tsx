@@ -14,11 +14,11 @@ export default function HostDashboard() {
   const [loading, setLoading] = useState(true);
 
   // Form state for listing a new PC
-  const [rigName, setRigName] = useState("Anton's RTX 4080 Rig");
-  const [gpu, setGpu] = useState("NVIDIA RTX 4080 16GB");
-  const [cpu, setCpu] = useState("Intel Core i9-14900K");
-  const [ram, setRam] = useState("32 GB DDR5");
-  const [storage, setStorage] = useState("1 TB NVMe SSD");
+  const [rigName, setRigName] = useState("");
+  const [gpu, setGpu] = useState("");
+  const [cpu, setCpu] = useState("");
+  const [ram, setRam] = useState("");
+  const [storage, setStorage] = useState("");
   const [price, setPrice] = useState("1.50");
 
   useEffect(() => {
@@ -140,7 +140,9 @@ export default function HostDashboard() {
               <span className="stat-label">Active Remote Streams</span>
             </div>
             <div className="stat-card">
-              <span className="stat-num">$3.60</span>
+              <span className="stat-num">
+                ${activeStreams.reduce((acc, r) => acc + (parseFloat(r.price_per_hour || r.price || 1.50) || 0), 0).toFixed(2)}
+              </span>
               <span className="stat-label">USDC Earned</span>
             </div>
           </div>

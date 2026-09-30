@@ -2,18 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 
 // Global memory store fallback for dev/demo live state
-let memoryRequests: any[] = [
-  {
-    id: 'req-demo-1',
-    session_id: 'HD-SESS-9981',
-    rig_id: 'host-rig-01',
-    renter_name: 'Gamer_Pro_99',
-    host_name: 'Anton (Host)',
-    status: 'pending',
-    ip_address: '192.168.1.105',
-    created_at: new Date().toISOString(),
-  },
-];
+let memoryRequests: any[] = [];
 
 export async function GET(req: NextRequest) {
   try {

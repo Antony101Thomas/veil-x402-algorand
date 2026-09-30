@@ -162,7 +162,9 @@ export default function AgentDashboard() {
               <span className="stat-title">Fleet Availability</span>
               <span className="stat-icon">🖥️</span>
             </div>
-            <div className="stat-value">12 / 18</div>
+            <div className="stat-value">
+              {RIG_CONFIGS.reduce((sum, r) => sum + r.availableSlots, 0)} / {RIG_CONFIGS.reduce((sum, r) => sum + r.totalSlots, 0)}
+            </div>
             <p className="stat-sub">High-demand GPU rigs online now</p>
           </div>
         </section>
