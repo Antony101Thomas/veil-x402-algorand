@@ -46,9 +46,9 @@ export function TopBar() {
     }
   }, [])
 
-  // Hide on full-page auth layouts
-  const AUTH_ROUTES = ['/login', '/reset-password']
-  if (AUTH_ROUTES.includes(pathname)) return null
+  // Hide TopBar on pages with dedicated sidebar or full-page layouts
+  const DASHBOARD_FULL_ROUTES = ['/agent', '/host', '/admin', '/profile', '/login', '/reset-password']
+  if (DASHBOARD_FULL_ROUTES.some((r) => pathname === r || pathname.startsWith(r + '/'))) return null
 
   return (
     <header className="topbar">

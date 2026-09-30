@@ -17,9 +17,12 @@ const routeConfig = {
     network: ALGORAND_TESTNET_NETWORK,
     payTo: process.env.PAY_TO!,
     price: "$0.05",
-    extra: { asset: USDC_TESTNET_ASA_ID },
+    extra: {
+      asset: USDC_TESTNET_ASA_ID,
+      tag: "x402-global-challenge",
+    },
   },
-  description: "HyperDeck Cloud PC Session Access",
+  description: "HyperDesk Cloud PC Session Access — On-demand high performance GPU rig streaming",
 } as const;
 
 let serverPromise: Promise<x402ResourceServer> | null = null;
