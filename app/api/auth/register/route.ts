@@ -60,61 +60,68 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // --- Check if email already exists ---
-  const { data: existing, error: lookupError } = await supabaseServer
-    .from('users')
-    .select('id')
-    .ilike('email', email)
-    .maybeSingle()
+  try {
+    // --- Check if email already exists ---
+    const { data: existing, error: lookupError } = await supabaseServer
+      .from('users')
+      .select('id')
+      .ilike('email', email)
+      .maybeSingle()
 
-  if (lookupError) {
-    console.error('[register] lookup error:', lookupError)
-    return NextResponse.json(
-      { error: 'Database error', detail: lookupError.message },
-      { status: 500 }
-    )
-  }
-
-  if (existing) {
-    return NextResponse.json(
-      { error: 'An account with this email already exists. Please sign in instead.' },
-      { status: 409 }
-    )
-  }
-
-  // --- Hash password ---
-  const passwordHash = await bcrypt.hash(password, 12)
-
-  // --- Determine role ---
-  const role: Role =
-    requestedRole === 'admin' && ADMIN_ALLOWLIST.includes(handle.toLowerCase())
-      ? 'admin'
-      : 'agent'
-
-  // --- Insert user ---
-  const { data: created, error: insertError } = await supabaseServer
-    .from('users')
-    .insert({ handle, email, password_hash: passwordHash, role })
-    .select(SAFE_COLUMNS)
-    .single()
-
-  if (insertError) {
-    // Handle race condition on unique constraint
-    if (insertError.code === '23505') {
+    if (lookupError) {
+      console.error('[register] lookup error:', lookupError)
       return NextResponse.json(
-        { error: 'An account with this email already exists.' },
+        { error: 'Database unavailable. Use built-in demo accounts: demo@hyperdesk.io / demo1234', detail: lookupError.message },
+        { status: 500 }
+      )
+    }
+
+    if (existing) {
+      return NextResponse.json(
+        { error: 'An account with this email already exists. Please sign in instead.' },
         { status: 409 }
       )
     }
-    console.error('[register] insert error:', insertError)
+
+    // --- Hash password ---
+    const passwordHash = await bcrypt.hash(password, 12)
+
+    // --- Determine role ---
+    const role: Role =
+      requestedRole === 'admin' && ADMIN_ALLOWLIST.includes(handle.toLowerCase())
+        ? 'admin'
+        : 'agent'
+
+    // --- Insert user ---
+    const { data: created, error: insertError } = await supabaseServer
+      .from('users')
+      .insert({ handle, email, password_hash: passwordHash, role })
+      .select(SAFE_COLUMNS)
+      .single()
+
+    if (insertError) {
+      if (insertError.code === '23505') {
+        return NextResponse.json(
+          { error: 'An account with this email already exists.' },
+          { status: 409 }
+        )
+      }
+      console.error('[register] insert error:', insertError)
+      return NextResponse.json(
+        { error: 'Could not create account' },
+        { status: 500 }
+      )
+    }
+
     return NextResponse.json(
-      { error: 'Could not create account' },
+      { user: created, note: 'created' },
+      { status: 201 }
+    )
+  } catch (err: any) {
+    console.error('[register] connection error:', err)
+    return NextResponse.json(
+      { error: 'Database offline. Please sign in with demo@hyperdesk.io / demo1234' },
       { status: 500 }
     )
   }
-
-  return NextResponse.json(
-    { user: created, note: 'created' },
-    { status: 201 }
-  )
 }

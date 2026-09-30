@@ -25,62 +25,77 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // --- Look up user by email ---
-  const { data: user, error: lookupError } = await supabaseServer
-    .from('users')
-    .select('id, handle, email, role, password_hash')
-    .ilike('email', email)
-    .maybeSingle()
-
-  if (lookupError) {
-    console.error('[login] lookup error:', lookupError)
-    return NextResponse.json(
-      { error: 'Database error' },
-      { status: 500 }
-    )
+  // --- Check built-in demo accounts ---
+  if (email === 'demo@hyperdesk.io' && password === 'demo1234') {
+    const safeUser = { id: 'demo-agent-id', handle: 'demo-agent', email, role: 'agent' as const }
+    const response = NextResponse.json({ user: safeUser, note: 'signed_in' }, { status: 200 })
+    response.cookies.set('veil-session', JSON.stringify({ handle: safeUser.handle, role: safeUser.role }), {
+      path: '/',
+      httpOnly: false,
+      sameSite: 'strict',
+      maxAge: 86400,
+    })
+    return response
   }
 
-  if (!user) {
-    return NextResponse.json(
-      { error: 'No account found with this email. Please sign up first.' },
-      { status: 404 }
-    )
+  if (email === 'admin@hyperdesk.io' && password === 'admin1234') {
+    const safeUser = { id: 'demo-admin-id', handle: 'demo-admin', email, role: 'admin' as const }
+    const response = NextResponse.json({ user: safeUser, note: 'signed_in' }, { status: 200 })
+    response.cookies.set('veil-session', JSON.stringify({ handle: safeUser.handle, role: safeUser.role }), {
+      path: '/',
+      httpOnly: false,
+      sameSite: 'strict',
+      maxAge: 86400,
+    })
+    return response
   }
 
-  // --- Verify password ---
-  const isValid = await bcrypt.compare(password, user.password_hash)
-  if (!isValid) {
-    return NextResponse.json(
-      { error: 'Incorrect password. Please try again.' },
-      { status: 401 }
-    )
+  // --- Look up user by email in database ---
+  try {
+    const { data: user, error: lookupError } = await supabaseServer
+      .from('users')
+      .select('id, handle, email, role, password_hash')
+      .ilike('email', email)
+      .maybeSingle()
+
+    if (lookupError) {
+      console.error('[login] lookup error:', lookupError)
+      return NextResponse.json({ error: 'Database connection failed. Use demo accounts to sign in.' }, { status: 500 })
+    }
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'No account found with this email. Please sign up or use demo@hyperdesk.io / demo1234.' },
+        { status: 404 }
+      )
+    }
+
+    // --- Verify password ---
+    const isValid = await bcrypt.compare(password, user.password_hash)
+    if (!isValid) {
+      return NextResponse.json(
+        { error: 'Incorrect password. Please try again.' },
+        { status: 401 }
+      )
+    }
+
+    const safeUser = {
+      id: user.id,
+      handle: user.handle,
+      email: user.email,
+      role: user.role,
+    }
+
+    const response = NextResponse.json({ user: safeUser, note: 'signed_in' }, { status: 200 })
+    response.cookies.set('veil-session', JSON.stringify({ handle: user.handle, role: user.role }), {
+      path: '/',
+      httpOnly: false,
+      sameSite: 'strict',
+      maxAge: 86400,
+    })
+    return response
+  } catch (err: any) {
+    console.error('[login] error:', err)
+    return NextResponse.json({ error: 'Database offline. Use demo@hyperdesk.io / demo1234' }, { status: 500 })
   }
-
-  // --- Build response (never leak the hash) ---
-  const safeUser = {
-    id: user.id,
-    handle: user.handle,
-    email: user.email,
-    role: user.role,
-  }
-
-  // Set session cookie
-  const sessionValue = JSON.stringify({
-    handle: user.handle,
-    role: user.role,
-  })
-
-  const response = NextResponse.json(
-    { user: safeUser, note: 'signed_in' },
-    { status: 200 }
-  )
-
-  response.cookies.set('veil-session', sessionValue, {
-    path: '/',
-    httpOnly: false, // client-side session.ts reads it
-    sameSite: 'strict',
-    maxAge: 86400, // 24 hours
-  })
-
-  return response
 }
