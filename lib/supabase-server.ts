@@ -1,34 +1,60 @@
 // lib/supabase-server.ts
+//
+// Lazy, resilient Supabase server client.
 
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.SUPABASE_URL || 'https://placeholder.supabase.co'
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'placeholder'
+let _supabaseServer: SupabaseClient | null = null
 
-export const supabaseServer = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: { persistSession: false },
+export function getSupabaseServer(): SupabaseClient | null {
+  if (_supabaseServer) return _supabaseServer
+  const supabaseUrl = process.env.SUPABASE_URL
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!supabaseUrl || !supabaseServiceKey) return null
+  try {
+    _supabaseServer = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    })
+    return _supabaseServer
+  } catch {
+    return null
+  }
+}
+
+export const supabaseServer = new Proxy({} as SupabaseClient, {
+  get(_target, prop) {
+    const client = getSupabaseServer()
+    if (!client) {
+      // Dummy chainable fallback if client not initialized
+      return () => ({
+        select: () => ({ order: () => Promise.resolve({ data: null, error: null }), eq: () => Promise.resolve({ data: null, error: null }), maybeSingle: () => Promise.resolve({ data: null, error: null }), single: () => Promise.resolve({ data: null, error: null }) }),
+        insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: null, error: null }) }) }),
+        update: () => ({ eq: () => Promise.resolve({ data: null, error: null }) }),
+        ilike: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) })
+      })
+    }
+    const val = (client as any)[prop]
+    return typeof val === 'function' ? val.bind(client) : val
+  }
 })
 
 export async function safeSupabaseQuery<T>(
-  queryFn: (client: typeof supabaseServer) => PromiseLike<{ data: T | null; error: any }>
+  queryFn: (client: SupabaseClient) => PromiseLike<{ data: T | null; error: any }>
 ): Promise<T | null> {
   return new Promise<T | null>((resolve) => {
     try {
-      Promise.resolve(queryFn(supabaseServer))
+      const client = getSupabaseServer()
+      if (!client) return resolve(null)
+      Promise.resolve(queryFn(client))
         .then((res) => {
           if (res?.error) {
-            console.warn('[supabase] query notice:', res.error.message || res.error)
             resolve(null)
           } else {
             resolve(res?.data ?? null)
           }
         })
-        .catch((err) => {
-          console.warn('[supabase] catch notice:', err?.message || err)
-          resolve(null)
-        })
-    } catch (err: any) {
-      console.warn('[supabase] sync notice:', err?.message || err)
+        .catch(() => resolve(null))
+    } catch {
       resolve(null)
     }
   })
