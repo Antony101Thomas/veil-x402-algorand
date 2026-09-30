@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { ThemeToggle } from './ThemeToggle'
 
 const SESSION_KEY = 'veil-session'
@@ -29,6 +30,7 @@ function readLocalStorageSession(): Session | null {
 }
 
 export function TopBar() {
+  const pathname = usePathname()
   const [session, setSession] = useState<Session | null>(null)
 
   useEffect(() => {
@@ -43,6 +45,10 @@ export function TopBar() {
       clearInterval(poll)
     }
   }, [])
+
+  // Hide on full-page auth layouts
+  const AUTH_ROUTES = ['/login', '/reset-password']
+  if (AUTH_ROUTES.includes(pathname)) return null
 
   return (
     <header className="topbar">
