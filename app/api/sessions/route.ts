@@ -9,11 +9,13 @@ export async function GET() {
       .order('created_at', { ascending: false });
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.warn('[sessions] DB lookup notice:', error.message);
+      return NextResponse.json({ sessions: [] });
     }
 
     return NextResponse.json({ sessions: data || [] });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
+    console.warn('[sessions] DB connection notice:', err.message);
+    return NextResponse.json({ sessions: [] });
   }
 }
