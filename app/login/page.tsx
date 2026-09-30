@@ -297,8 +297,8 @@ function LoginInner() {
           display: grid;
           grid-template-columns: 1fr 1fr;
           min-height: 100vh;
-          background: var(--bg, #000);
-          color: var(--text, #fff);
+          background: #000;
+          color: #fff;
           font-family: 'Inter', system-ui, sans-serif;
         }
         @media (max-width: 860px) {
@@ -307,8 +307,8 @@ function LoginInner() {
 
         /* ── LEFT ── */
         .auth-left {
-          background: var(--surface, #121212);
-          border-right: 1px solid var(--border, #27272a);
+          background: #0d0d0d;
+          border-right: 1px solid #27272a;
           display: flex;
           align-items: stretch;
         }
@@ -326,7 +326,7 @@ function LoginInner() {
           gap: 10px;
           font-size: 1.25rem;
           font-weight: 800;
-          color: var(--text, #fff);
+          color: #fff;
           text-decoration: none;
           letter-spacing: -0.01em;
         }
@@ -352,7 +352,7 @@ function LoginInner() {
         }
         .auth-pitch__accent { color: #ff2d2d; }
         .auth-pitch__body {
-          color: var(--text-muted, #a1a1aa);
+          color: #a1a1aa;
           font-size: 0.9rem;
           line-height: 1.6;
           margin: 0;
@@ -361,7 +361,7 @@ function LoginInner() {
         /* Terminal */
         .auth-terminal {
           background: #0a0a0a;
-          border: 1px solid var(--border, #27272a);
+          border: 1px solid #27272a;
           border-radius: 12px;
           overflow: hidden;
         }
@@ -370,7 +370,7 @@ function LoginInner() {
           align-items: center;
           gap: 7px;
           padding: 10px 14px;
-          border-bottom: 1px solid var(--border, #27272a);
+          border-bottom: 1px solid #27272a;
           background: #111;
         }
         .dot { width: 10px; height: 10px; border-radius: 50%; }
@@ -380,7 +380,7 @@ function LoginInner() {
         .auth-terminal__title {
           margin-left: 6px;
           font-size: 0.75rem;
-          color: var(--text-muted, #a1a1aa);
+          color: #a1a1aa;
           font-family: monospace;
         }
         .auth-terminal__body {
@@ -391,7 +391,7 @@ function LoginInner() {
           line-height: 1.85;
           min-height: 140px;
         }
-        .tline--muted { color: var(--text-muted, #a1a1aa); }
+        .tline--muted { color: #a1a1aa; }
         .tline--warn  { color: #febc2e; font-weight: 600; }
         .tline--ok    { color: #3ddc84; font-weight: 600; }
 
@@ -400,11 +400,11 @@ function LoginInner() {
           display: flex;
           gap: 28px;
           padding-top: 8px;
-          border-top: 1px solid var(--border, #27272a);
+          border-top: 1px solid #27272a;
         }
         .auth-stat { display: flex; flex-direction: column; gap: 2px; }
-        .auth-stat__n { font-size: 1.3rem; font-weight: 800; color: var(--text, #fff); }
-        .auth-stat__l { font-size: 0.75rem; color: var(--text-muted, #a1a1aa); }
+        .auth-stat__n { font-size: 1.3rem; font-weight: 800; color: #fff; }
+        .auth-stat__l { font-size: 0.75rem; color: #a1a1aa; }
 
         /* ── RIGHT ── */
         .auth-right {
@@ -412,12 +412,13 @@ function LoginInner() {
           align-items: center;
           justify-content: center;
           padding: 40px 24px;
+          background: #000;
         }
         .auth-card {
           width: 100%;
           max-width: 420px;
-          background: var(--surface, #121212);
-          border: 1px solid var(--border, #27272a);
+          background: #111;
+          border: 1px solid #27272a;
           border-radius: 20px;
           overflow: hidden;
           box-shadow: 0 24px 64px rgba(0,0,0,0.5);
@@ -427,13 +428,13 @@ function LoginInner() {
         .auth-tabs {
           display: grid;
           grid-template-columns: 1fr 1fr;
-          border-bottom: 1px solid var(--border, #27272a);
+          border-bottom: 1px solid #27272a;
         }
         .auth-tab {
           padding: 16px;
           background: transparent;
           border: none;
-          color: var(--text-muted, #a1a1aa);
+          color: #a1a1aa;
           font-size: 0.9rem;
           font-weight: 600;
           cursor: pointer;
@@ -441,15 +442,15 @@ function LoginInner() {
           font-family: inherit;
         }
         .auth-tab:first-child {
-          border-right: 1px solid var(--border, #27272a);
+          border-right: 1px solid #27272a;
         }
         .auth-tab--active {
-          color: var(--text, #fff);
-          background: var(--surface-raised, #181818);
+          color: #fff;
+          background: #181818;
           box-shadow: inset 0 -2px 0 #ff2d2d;
         }
         .auth-tab:hover:not(.auth-tab--active) {
-          color: var(--text, #fff);
+          color: #fff;
           background: rgba(255,255,255,0.03);
         }
 
@@ -465,7 +466,7 @@ function LoginInner() {
         }
         .auth-card__sub {
           font-size: 0.85rem;
-          color: var(--text-muted, #a1a1aa);
+          color: #a1a1aa;
           margin: 0 0 22px;
           line-height: 1.5;
         }
@@ -490,23 +491,23 @@ function LoginInner() {
         .auth-label {
           font-size: 0.8rem;
           font-weight: 600;
-          color: var(--text-muted, #a1a1aa);
+          color: #a1a1aa;
           text-transform: uppercase;
           letter-spacing: 0.06em;
         }
         .auth-input {
-          background: var(--bg, #000);
-          border: 1px solid var(--border, #27272a);
+          background: #0a0a0a;
+          border: 1px solid #27272a;
           border-radius: 10px;
           padding: 11px 14px;
-          color: var(--text, #fff);
+          color: #fff;
           font-size: 0.92rem;
           font-family: inherit;
           width: 100%;
           transition: border-color 0.15s ease, box-shadow 0.15s ease;
           outline: none;
         }
-        .auth-input::placeholder { color: var(--text-muted, #a1a1aa); opacity: 0.6; }
+        .auth-input::placeholder { color: #a1a1aa; opacity: 0.6; }
         .auth-input:focus {
           border-color: #ff2d2d;
           box-shadow: 0 0 0 3px rgba(255,45,45,0.15);
@@ -553,7 +554,7 @@ function LoginInner() {
           margin: 14px auto 0;
           background: none;
           border: none;
-          color: var(--text-muted, #a1a1aa);
+          color: #a1a1aa;
           font-size: 0.82rem;
           cursor: pointer;
           font-family: inherit;
@@ -561,15 +562,15 @@ function LoginInner() {
           text-decoration: underline;
           text-underline-offset: 3px;
         }
-        .auth-forgot:hover { color: var(--text, #fff); }
+        .auth-forgot:hover { color: #fff; }
 
         /* Footer */
         .auth-card__footer {
           padding: 16px 28px 20px;
-          border-top: 1px solid var(--border, #27272a);
+          border-top: 1px solid #27272a;
           text-align: center;
           font-size: 0.84rem;
-          color: var(--text-muted, #a1a1aa);
+          color: #a1a1aa;
         }
         .auth-switch {
           background: none;
