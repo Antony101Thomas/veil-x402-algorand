@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import TopBar from '@/components/TopBar';
+
 import RigCard from '@/components/RigCard';
 import { RIG_CONFIGS, Rig } from '@/lib/rigs';
 import { readSession } from '@/lib/session';
@@ -74,8 +74,6 @@ export default function RigsPage() {
 
   return (
     <div className="hyperdesk-shell">
-      <TopBar />
-
       <main className="main-content">
         <header className="page-header">
           <div className="header-text">

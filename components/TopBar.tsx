@@ -60,10 +60,17 @@ export function TopBar() {
       </div>
 
       <div className="topbar__right">
-        {session?.role === 'agent' && (
-          <Link href="/wallet" className="topbar__wallet-badge" aria-label="Wallet">
-            <img src="/wallet-icon.png" alt="Wallet" width={35} height={35} />
-          </Link>
+        {session ? (
+          session.role === 'agent' && (
+            <Link href="/wallet" className="topbar__wallet-badge" aria-label="Wallet">
+              <img src="/wallet-icon.png" alt="Wallet" width={35} height={35} />
+            </Link>
+          )
+        ) : (
+          <div className="topbar__auth">
+            <Link href="/login" className="topbar__signin">Sign In</Link>
+            <Link href="/login?mode=register" className="topbar__signup">Sign Up</Link>
+          </div>
         )}
         <ThemeToggle />
       </div>
@@ -140,6 +147,38 @@ export function TopBar() {
           width: 100%;
           height: 100%;
           object-fit: contain;
+        }
+        .topbar__auth {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        :global(.topbar__signin) {
+          color: var(--text-muted);
+          text-decoration: none;
+          font-size: 0.85rem;
+          font-weight: 600;
+          padding: 6px 14px;
+          border-radius: 999px;
+          border: 1px solid var(--border);
+          transition: border-color 0.15s ease, color 0.15s ease;
+        }
+        :global(.topbar__signin:hover) {
+          border-color: var(--text-muted);
+          color: var(--text);
+        }
+        :global(.topbar__signup) {
+          color: var(--btn-text, #fff);
+          background: var(--accent, #ff0000);
+          text-decoration: none;
+          font-size: 0.85rem;
+          font-weight: 700;
+          padding: 6px 14px;
+          border-radius: 999px;
+          transition: opacity 0.15s ease;
+        }
+        :global(.topbar__signup:hover) {
+          opacity: 0.88;
         }
       `}</style>
     </header>

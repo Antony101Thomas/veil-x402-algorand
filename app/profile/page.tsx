@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import TopBar from '@/components/TopBar';
+
 import { readSession, clearSession } from '@/lib/session';
 
 export default function ProfilePage() {
@@ -35,8 +35,6 @@ export default function ProfilePage() {
 
   return (
     <div className="hyperdesk-shell">
-      <TopBar />
-
       <div className="shell-body">
         <aside className="sidebar">
           <div className="sidebar__brand">HyperDesk</div>
