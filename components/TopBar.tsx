@@ -51,12 +51,14 @@ export function TopBar() {
           <span className="topbar__play" aria-hidden="true" />
           HyperDesk
         </Link>
-        <nav className="topbar__nav">
-          <Link href="/rigs" className="nav-link">Browse Fleet</Link>
-          <Link href="/host" className="nav-link nav-host">🖥️ Host PC Mode</Link>
-          <Link href="/sessions" className="nav-link">Sessions</Link>
-          <Link href="/rewards" className="nav-link">Rewards</Link>
-        </nav>
+        {session && (
+          <nav className="topbar__nav">
+            <Link href="/rigs" className="nav-link">Browse Fleet</Link>
+            <Link href="/host" className="nav-link nav-host">🖥️ Host PC Mode</Link>
+            <Link href="/sessions" className="nav-link">Sessions</Link>
+            <Link href="/rewards" className="nav-link">Rewards</Link>
+          </nav>
+        )}
       </div>
 
       <div className="topbar__right">
