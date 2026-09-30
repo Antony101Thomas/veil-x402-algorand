@@ -12,15 +12,24 @@ export const supabaseServer = createClient(supabaseUrl, supabaseServiceKey, {
 export async function safeSupabaseQuery<T>(
   queryFn: (client: typeof supabaseServer) => PromiseLike<{ data: T | null; error: any }>
 ): Promise<T | null> {
-  try {
-    const res = await queryFn(supabaseServer)
-    if (res?.error) {
-      console.warn('[supabase] query notice:', res.error.message || res.error)
-      return null
+  return new Promise<T | null>((resolve) => {
+    try {
+      Promise.resolve(queryFn(supabaseServer))
+        .then((res) => {
+          if (res?.error) {
+            console.warn('[supabase] query notice:', res.error.message || res.error)
+            resolve(null)
+          } else {
+            resolve(res?.data ?? null)
+          }
+        })
+        .catch((err) => {
+          console.warn('[supabase] catch notice:', err?.message || err)
+          resolve(null)
+        })
+    } catch (err: any) {
+      console.warn('[supabase] sync notice:', err?.message || err)
+      resolve(null)
     }
-    return res?.data ?? null
-  } catch (err: any) {
-    console.warn('[supabase] network notice:', err?.message || err)
-    return null
-  }
+  })
 }
