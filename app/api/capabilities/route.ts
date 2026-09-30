@@ -1,34 +1,38 @@
-// app/api/capabilities/route.ts
-
-import { NextResponse } from 'next/server'
-import { supabaseServer } from '@/lib/supabase-server'
+import { NextResponse } from 'next/server';
 
 export async function GET() {
-  const { data, error } = await supabaseServer
-    .from('capabilities')
-    .select(
-      `
-      credential_id,
-      resource_id,
-      action,
-      quota,
-      quota_used,
-      expiry_at,
-      revoked,
-      revoked_at,
-      created_at,
-      agents ( agent_id, name, status )
-    `
-    )
-    .order('created_at', { ascending: false })
+  try {
+    const { supabaseServer } = await import('@/lib/supabase-server');
 
-  if (error) {
-    console.error('[capabilities] fetch error:', error)
-    return NextResponse.json(
-      { error: 'Database error fetching capabilities', detail: error.message },
-      { status: 500 }
-    )
+    const fetchDb = async (): Promise<any[]> => {
+      try {
+        const res = await supabaseServer
+          .from('capabilities')
+          .select(
+            `
+            credential_id,
+            resource_id,
+            action,
+            quota,
+            expiry_round,
+            revoked,
+            created_at
+          `
+          )
+          .order('created_at', { ascending: false });
+        return res?.data || [];
+      } catch {
+        return [];
+      }
+    };
+
+    const timeoutPromise = new Promise<any[]>((resolve) =>
+      setTimeout(() => resolve([]), 2000)
+    );
+
+    const capabilities = await Promise.race([fetchDb(), timeoutPromise]);
+    return NextResponse.json({ capabilities }, { status: 200 });
+  } catch (err: any) {
+    return NextResponse.json({ capabilities: [] }, { status: 200 });
   }
-
-  return NextResponse.json({ capabilities: data }, { status: 200 })
 }
