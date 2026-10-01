@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { clearSession, readSession, type Session } from '@/lib/session';
 import { RIG_CONFIGS, Rig } from '@/lib/rigs';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 export default function AgentDashboard() {
   const router = useRouter();
@@ -66,6 +67,9 @@ export default function AgentDashboard() {
         <div className="sidebar-brand">
           <span className="brand-icon">⚡</span>
           <span>HyperDesk</span>
+          <div style={{ marginLeft: 'auto' }}>
+            <ThemeToggle />
+          </div>
         </div>
 
         <div className="user-profile-badge">
@@ -117,6 +121,7 @@ export default function AgentDashboard() {
             </p>
           </div>
           <div className="quick-actions">
+            <ThemeToggle />
             <a href="/rigs" className="btn-action primary">Rent a Rig Now</a>
             <a href="/host" className="btn-action ghost">Host My PC</a>
           </div>
@@ -265,8 +270,8 @@ export default function AgentDashboard() {
           display: grid;
           grid-template-columns: 260px 1fr;
           min-height: 100vh;
-          background: #000;
-          color: #f1f1f1;
+          background: var(--bg);
+          color: var(--text);
           font-family: 'Inter', system-ui, sans-serif;
         }
         @media (max-width: 900px) {
@@ -276,8 +281,8 @@ export default function AgentDashboard() {
 
         /* Sidebar */
         .dash-sidebar {
-          background: #0c0c0e;
-          border-right: 1px solid #27272a;
+          background: var(--surface);
+          border-right: 1px solid var(--border);
           padding: 28px 20px;
           display: flex;
           flex-direction: column;
@@ -289,26 +294,26 @@ export default function AgentDashboard() {
           gap: 10px;
           font-size: 1.25rem;
           font-weight: 800;
-          color: #fff;
+          color: var(--text);
         }
         .brand-icon {
-          color: #ff0000;
+          color: var(--accent);
         }
         .user-profile-badge {
           display: flex;
           align-items: center;
           gap: 12px;
           padding: 12px;
-          background: #18181b;
-          border: 1px solid #27272a;
+          background: var(--surface-raised);
+          border: 1px solid var(--border);
           border-radius: 12px;
         }
         .avatar-circle {
           width: 38px;
           height: 38px;
           border-radius: 50%;
-          background: #ff0000;
-          color: #fff;
+          background: var(--btn-bg);
+          color: var(--btn-text);
           font-weight: 800;
           display: flex;
           align-items: center;
@@ -321,10 +326,11 @@ export default function AgentDashboard() {
         .handle-name {
           font-weight: 700;
           font-size: 0.9rem;
+          color: var(--text);
         }
         .role-tag {
           font-size: 0.72rem;
-          color: #a1a1aa;
+          color: var(--text-muted);
         }
         .sidebar-nav {
           display: flex;
@@ -338,34 +344,34 @@ export default function AgentDashboard() {
           gap: 10px;
           padding: 10px 14px;
           border-radius: 8px;
-          color: #a1a1aa;
+          color: var(--text-muted);
           text-decoration: none;
           font-size: 0.88rem;
           font-weight: 600;
           transition: all 0.15s ease;
         }
         .nav-item:hover, .nav-item.active {
-          background: #18181b;
-          color: #fff;
+          background: var(--surface-raised);
+          color: var(--text);
         }
         .nav-item.active {
-          border-left: 3px solid #ff0000;
+          border-left: 3px solid var(--accent);
         }
         .nav-item--host {
           color: #10b981;
         }
         .nav-badge {
           margin-left: auto;
-          background: #ff0000;
-          color: #fff;
+          background: var(--accent);
+          color: var(--accent-contrast);
           font-size: 0.7rem;
           padding: 2px 6px;
           border-radius: 999px;
         }
         .btn-signout {
           background: transparent;
-          border: 1px solid #27272a;
-          color: #a1a1aa;
+          border: 1px solid var(--border);
+          color: var(--text-muted);
           padding: 10px;
           border-radius: 8px;
           font-weight: 600;
@@ -373,8 +379,8 @@ export default function AgentDashboard() {
           transition: all 0.15s ease;
         }
         .btn-signout:hover {
-          border-color: #ff0000;
-          color: #fff;
+          border-color: var(--accent);
+          color: var(--text);
         }
 
         /* Main Content */
@@ -395,7 +401,7 @@ export default function AgentDashboard() {
         .eyebrow {
           font-size: 0.75rem;
           letter-spacing: 0.14em;
-          color: #ff0000;
+          color: var(--text-muted);
           font-weight: 700;
           margin: 0 0 6px;
         }
@@ -403,18 +409,20 @@ export default function AgentDashboard() {
           font-size: 2.1rem;
           font-weight: 800;
           margin: 0 0 8px;
+          color: var(--text);
         }
         .highlight {
-          color: #ff0000;
+          color: var(--text);
         }
         .subtext {
-          color: #a1a1aa;
+          color: var(--text-muted);
           font-size: 0.95rem;
           margin: 0;
           max-width: 580px;
         }
         .quick-actions {
           display: flex;
+          align-items: center;
           gap: 12px;
         }
         .btn-action {
@@ -426,20 +434,19 @@ export default function AgentDashboard() {
           transition: all 0.15s ease;
         }
         .btn-action.primary {
-          background: #ff0000;
-          color: #fff;
+          background: var(--btn-bg);
+          color: var(--btn-text);
         }
         .btn-action.primary:hover {
           opacity: 0.9;
         }
         .btn-action.ghost {
           background: transparent;
-          border: 1px solid #27272a;
-          color: #fff;
+          border: 1px solid var(--border);
+          color: var(--text);
         }
         .btn-action.ghost:hover {
-          border-color: #10b981;
-          color: #10b981;
+          border-color: var(--accent);
         }
 
         /* Stats Grid */
@@ -452,8 +459,8 @@ export default function AgentDashboard() {
           .stats-grid { grid-template-columns: repeat(2, 1fr); }
         }
         .stat-card {
-          background: #111113;
-          border: 1px solid #27272a;
+          background: var(--surface);
+          border: 1px solid var(--border);
           border-radius: 16px;
           padding: 20px;
           display: flex;
@@ -463,29 +470,29 @@ export default function AgentDashboard() {
         .stat-header {
           display: flex;
           justify-content: space-between;
-          color: #a1a1aa;
+          color: var(--text-muted);
           font-size: 0.8rem;
           font-weight: 600;
         }
         .stat-value {
           font-size: 1.8rem;
           font-weight: 800;
-          color: #fff;
+          color: var(--text);
         }
         .stat-value .unit {
           font-size: 0.9rem;
-          color: #a1a1aa;
+          color: var(--text-muted);
         }
         .stat-sub {
           font-size: 0.78rem;
-          color: #a1a1aa;
+          color: var(--text-muted);
           margin: 0;
         }
 
         /* Recommendations Section */
         .recommendations-section {
-          background: #0e0e10;
-          border: 1px solid #27272a;
+          background: var(--surface);
+          border: 1px solid var(--border);
           border-radius: 20px;
           padding: 28px;
           display: flex;
@@ -503,18 +510,19 @@ export default function AgentDashboard() {
           font-size: 1.3rem;
           font-weight: 800;
           margin: 0 0 4px;
+          color: var(--text);
         }
         .section-sub {
           font-size: 0.85rem;
-          color: #a1a1aa;
+          color: var(--text-muted);
           margin: 0;
         }
         .search-box {
           display: flex;
           align-items: center;
           gap: 8px;
-          background: #18181b;
-          border: 1px solid #27272a;
+          background: var(--bg);
+          border: 1px solid var(--border);
           padding: 8px 14px;
           border-radius: 999px;
           width: 240px;
@@ -522,7 +530,7 @@ export default function AgentDashboard() {
         .search-box input {
           background: transparent;
           border: none;
-          color: #fff;
+          color: var(--text);
           font-size: 0.85rem;
           outline: none;
           width: 100%;
@@ -535,9 +543,9 @@ export default function AgentDashboard() {
           flex-wrap: wrap;
         }
         .tab-btn {
-          background: #18181b;
-          border: 1px solid #27272a;
-          color: #a1a1aa;
+          background: var(--bg);
+          border: 1px solid var(--border);
+          color: var(--text-muted);
           padding: 6px 16px;
           border-radius: 999px;
           font-size: 0.82rem;
@@ -546,9 +554,9 @@ export default function AgentDashboard() {
           transition: all 0.15s ease;
         }
         .tab-btn.active {
-          background: #ff0000;
-          border-color: #ff0000;
-          color: #fff;
+          background: var(--btn-bg);
+          border-color: var(--btn-bg);
+          color: var(--btn-text);
         }
 
         /* Cards Grid */
@@ -561,8 +569,8 @@ export default function AgentDashboard() {
           .rig-cards-grid { grid-template-columns: 1fr; }
         }
         .dash-rig-card {
-          background: #141416;
-          border: 1px solid #27272a;
+          background: var(--surface-raised);
+          border: 1px solid var(--border);
           border-radius: 14px;
           padding: 20px;
           display: flex;
@@ -570,7 +578,7 @@ export default function AgentDashboard() {
           gap: 12px;
         }
         .dash-rig-card:hover {
-          border-color: #3f3f46;
+          border-color: var(--text-muted);
         }
         .rig-badge-strip {
           display: flex;
@@ -580,7 +588,7 @@ export default function AgentDashboard() {
         .tier-tag {
           font-size: 0.72rem;
           font-weight: 700;
-          color: #ff0000;
+          color: var(--text-muted);
           letter-spacing: 0.08em;
           text-transform: uppercase;
         }
@@ -593,16 +601,17 @@ export default function AgentDashboard() {
           font-size: 1.15rem;
           font-weight: 800;
           margin: 0;
+          color: var(--text);
         }
         .specs-list {
           display: flex;
           flex-direction: column;
           gap: 4px;
           font-size: 0.82rem;
-          color: #a1a1aa;
+          color: var(--text-muted);
         }
         .spec-item .label {
-          color: #71717a;
+          color: var(--text-muted);
         }
         .usecase-tags {
           display: flex;
@@ -610,8 +619,8 @@ export default function AgentDashboard() {
           flex-wrap: wrap;
         }
         .uc-chip {
-          background: #27272a;
-          color: #d4d4d8;
+          background: var(--border);
+          color: var(--text);
           font-size: 0.7rem;
           padding: 3px 8px;
           border-radius: 4px;
@@ -622,20 +631,20 @@ export default function AgentDashboard() {
           align-items: center;
           margin-top: auto;
           padding-top: 10px;
-          border-top: 1px solid #27272a;
+          border-top: 1px solid var(--border);
         }
         .price-tag {
           font-size: 1.25rem;
           font-weight: 800;
-          color: #fff;
+          color: var(--text);
         }
         .price-tag span {
           font-size: 0.78rem;
-          color: #a1a1aa;
+          color: var(--text-muted);
         }
         .btn-launch {
-          background: #ff0000;
-          color: #fff;
+          background: var(--btn-bg);
+          color: var(--btn-text);
           padding: 8px 16px;
           border-radius: 8px;
           font-size: 0.85rem;
@@ -649,19 +658,20 @@ export default function AgentDashboard() {
 
         /* Active Sessions Section */
         .active-sessions-section {
-          background: #111113;
-          border: 1px solid #27272a;
+          background: var(--surface);
+          border: 1px solid var(--border);
           border-radius: 16px;
           padding: 24px;
         }
         .active-sessions-section h2 {
           font-size: 1.15rem;
           margin: 0 0 16px;
+          color: var(--text);
         }
         .empty-sessions {
           text-align: center;
           padding: 24px;
-          color: #a1a1aa;
+          color: var(--text-muted);
           font-size: 0.9rem;
           display: flex;
           flex-direction: column;
@@ -670,13 +680,16 @@ export default function AgentDashboard() {
         }
         .btn-browse-fleet {
           background: transparent;
-          border: 1px solid #ff0000;
-          color: #ff0000;
+          border: 1px solid var(--border);
+          color: var(--text);
           padding: 8px 18px;
           border-radius: 999px;
           text-decoration: none;
           font-size: 0.85rem;
           font-weight: 700;
+        }
+        .btn-browse-fleet:hover {
+          border-color: var(--text);
         }
         .sessions-list {
           display: flex;
@@ -687,18 +700,19 @@ export default function AgentDashboard() {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          background: #18181b;
-          border: 1px solid #27272a;
+          background: var(--surface-raised);
+          border: 1px solid var(--border);
           border-radius: 10px;
           padding: 14px 18px;
         }
         .sess-info h4 {
           margin: 0 0 4px;
           font-size: 0.95rem;
+          color: var(--text);
         }
         .sess-time {
           font-size: 0.78rem;
-          color: #a1a1aa;
+          color: var(--text-muted);
         }
         .sess-status {
           display: flex;
@@ -715,8 +729,8 @@ export default function AgentDashboard() {
           background: #10b981;
         }
         .btn-stream {
-          background: #ff0000;
-          color: #fff;
+          background: var(--btn-bg);
+          color: var(--btn-text);
           padding: 8px 14px;
           border-radius: 6px;
           text-decoration: none;

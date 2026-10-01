@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { readSession, clearSession } from '@/lib/session';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 export default function HostDashboard() {
   const router = useRouter();
@@ -121,9 +122,12 @@ export default function HostDashboard() {
               <h1>Host Dashboard & Remote Desk Control</h1>
               <p className="subtext">Share your gaming rig when idle, earn ALGO/USDC, and grant remote access on demand.</p>
             </div>
-            <button className="btn-add-pc" onClick={() => setShowAddModal(true)}>
-              + List My PC For Rent
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <ThemeToggle />
+              <button className="btn-add-pc" onClick={() => setShowAddModal(true)}>
+                + List My PC For Rent
+              </button>
+            </div>
           </header>
 
           <div className="stats-row">

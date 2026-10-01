@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { clearSession, dashboardPath, readSession, type Session } from '@/lib/session'
+import { ThemeToggle } from '@/components/ThemeToggle'
 
 type CapStatus = 'active' | 'revoked' | 'expired'
 
@@ -163,6 +164,9 @@ export default function AdminDashboard() {
           <div className="topbar__status">
             <span className="dot dot--ok" />
             Algorand TestNet Connected
+            <div style={{ marginLeft: 12 }}>
+              <ThemeToggle />
+            </div>
           </div>
         </header>
 

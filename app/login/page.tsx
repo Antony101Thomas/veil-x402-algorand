@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { writeSession } from '@/lib/session'
+import { ThemeToggle } from '@/components/ThemeToggle'
 
 type Mode = 'signin' | 'signup'
 type Role = 'agent' | 'admin'
@@ -41,7 +42,7 @@ function useTypewriterLines(lines: string[], speed = 18, start = true) {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div style={{ minHeight: '100vh', background: '#000' }} />}>
+    <Suspense fallback={<div style={{ minHeight: '100vh', background: 'var(--bg)' }} />}>
       <LoginInner />
     </Suspense>
   )
@@ -52,13 +53,17 @@ function LoginInner() {
   const searchParams = useSearchParams()
 
   const initialMode: Mode = searchParams.get('mode') === 'register' ? 'signup' : 'signin'
+  const reason = searchParams.get('reason')
+
   const [mode, setMode] = useState<Mode>(initialMode)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [role, setRole] = useState<Role>('agent')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(
+    reason === 'inactivity' ? 'You were automatically logged out due to 5 minutes of inactivity.' : null
+  )
 
   const termLines = useTypewriterLines(TERMINAL_LINES.map((l) => l.text))
 
@@ -124,13 +129,20 @@ function LoginInner() {
 
   return (
     <div className="auth-root">
+      {/* Top Bar Theme Toggle for mobile or top right */}
+      <div className="auth-header-bar">
+        <ThemeToggle />
+      </div>
+
       {/* ── LEFT PANEL ── */}
       <div className="auth-left">
         <div className="auth-left__inner">
-          <a href="/" className="auth-brand">
-            <span className="auth-brand__play" aria-hidden="true" />
-            HyperDesk
-          </a>
+          <div className="auth-brand-row">
+            <a href="/" className="auth-brand">
+              <span className="auth-brand__play" aria-hidden="true" />
+              HyperDesk
+            </a>
+          </div>
 
           <div className="auth-pitch">
             <p className="auth-pitch__eye">⚡ AGENTIC ACCESS · X402 + ALGORAND</p>
@@ -294,21 +306,28 @@ function LoginInner() {
 
       <style jsx>{`
         .auth-root {
+          position: relative;
           display: grid;
           grid-template-columns: 1fr 1fr;
           min-height: 100vh;
-          background: #000;
-          color: #fff;
+          background: var(--bg);
+          color: var(--text);
           font-family: 'Inter', system-ui, sans-serif;
         }
         @media (max-width: 860px) {
           .auth-root { grid-template-columns: 1fr; }
         }
+        .auth-header-bar {
+          position: absolute;
+          top: 20px;
+          right: 20px;
+          z-index: 50;
+        }
 
         /* ── LEFT ── */
         .auth-left {
-          background: #0d0d0d;
-          border-right: 1px solid #27272a;
+          background: var(--surface);
+          border-right: 1px solid var(--border);
           display: flex;
           align-items: stretch;
         }
@@ -320,13 +339,18 @@ function LoginInner() {
           padding: 48px 44px;
           width: 100%;
         }
+        .auth-brand-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
         .auth-brand {
           display: inline-flex;
           align-items: center;
           gap: 10px;
           font-size: 1.25rem;
           font-weight: 800;
-          color: #fff;
+          color: var(--text);
           text-decoration: none;
           letter-spacing: -0.01em;
         }
@@ -334,13 +358,13 @@ function LoginInner() {
           width: 0; height: 0;
           border-top: 7px solid transparent;
           border-bottom: 7px solid transparent;
-          border-left: 11px solid #ff2d2d;
+          border-left: 11px solid var(--accent);
         }
         .auth-pitch__eye {
           font-size: 0.72rem;
           letter-spacing: 0.14em;
           text-transform: uppercase;
-          color: #ff2d2d;
+          color: var(--text-muted);
           font-weight: 700;
           margin: 0 0 10px;
         }
@@ -349,10 +373,11 @@ function LoginInner() {
           font-weight: 800;
           line-height: 1.15;
           margin: 0 0 14px;
+          color: var(--text);
         }
-        .auth-pitch__accent { color: #ff2d2d; }
+        .auth-pitch__accent { color: var(--accent); }
         .auth-pitch__body {
-          color: #a1a1aa;
+          color: var(--text-muted);
           font-size: 0.9rem;
           line-height: 1.6;
           margin: 0;
@@ -360,8 +385,8 @@ function LoginInner() {
 
         /* Terminal */
         .auth-terminal {
-          background: #0a0a0a;
-          border: 1px solid #27272a;
+          background: var(--surface-raised);
+          border: 1px solid var(--border);
           border-radius: 12px;
           overflow: hidden;
         }
@@ -370,8 +395,8 @@ function LoginInner() {
           align-items: center;
           gap: 7px;
           padding: 10px 14px;
-          border-bottom: 1px solid #27272a;
-          background: #111;
+          border-bottom: 1px solid var(--border);
+          background: var(--surface);
         }
         .dot { width: 10px; height: 10px; border-radius: 50%; }
         .dot--red   { background: #ff5f57; }
@@ -380,7 +405,7 @@ function LoginInner() {
         .auth-terminal__title {
           margin-left: 6px;
           font-size: 0.75rem;
-          color: #a1a1aa;
+          color: var(--text-muted);
           font-family: monospace;
         }
         .auth-terminal__body {
@@ -391,7 +416,7 @@ function LoginInner() {
           line-height: 1.85;
           min-height: 140px;
         }
-        .tline--muted { color: #a1a1aa; }
+        .tline--muted { color: var(--text-muted); }
         .tline--warn  { color: #febc2e; font-weight: 600; }
         .tline--ok    { color: #3ddc84; font-weight: 600; }
 
@@ -400,11 +425,11 @@ function LoginInner() {
           display: flex;
           gap: 28px;
           padding-top: 8px;
-          border-top: 1px solid #27272a;
+          border-top: 1px solid var(--border);
         }
         .auth-stat { display: flex; flex-direction: column; gap: 2px; }
-        .auth-stat__n { font-size: 1.3rem; font-weight: 800; color: #fff; }
-        .auth-stat__l { font-size: 0.75rem; color: #a1a1aa; }
+        .auth-stat__n { font-size: 1.3rem; font-weight: 800; color: var(--text); }
+        .auth-stat__l { font-size: 0.75rem; color: var(--text-muted); }
 
         /* ── RIGHT ── */
         .auth-right {
@@ -412,29 +437,29 @@ function LoginInner() {
           align-items: center;
           justify-content: center;
           padding: 40px 24px;
-          background: #000;
+          background: var(--bg);
         }
         .auth-card {
           width: 100%;
           max-width: 420px;
-          background: #111;
-          border: 1px solid #27272a;
+          background: var(--surface);
+          border: 1px solid var(--border);
           border-radius: 20px;
           overflow: hidden;
-          box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+          box-shadow: 0 24px 64px rgba(0,0,0,0.15);
         }
 
         /* Tabs */
         .auth-tabs {
           display: grid;
           grid-template-columns: 1fr 1fr;
-          border-bottom: 1px solid #27272a;
+          border-bottom: 1px solid var(--border);
         }
         .auth-tab {
           padding: 16px;
           background: transparent;
           border: none;
-          color: #a1a1aa;
+          color: var(--text-muted);
           font-size: 0.9rem;
           font-weight: 600;
           cursor: pointer;
@@ -442,16 +467,16 @@ function LoginInner() {
           font-family: inherit;
         }
         .auth-tab:first-child {
-          border-right: 1px solid #27272a;
+          border-right: 1px solid var(--border);
         }
         .auth-tab--active {
-          color: #fff;
-          background: #181818;
-          box-shadow: inset 0 -2px 0 #ff2d2d;
+          color: var(--text);
+          background: var(--surface-raised);
+          box-shadow: inset 0 -2px 0 var(--text);
         }
         .auth-tab:hover:not(.auth-tab--active) {
-          color: #fff;
-          background: rgba(255,255,255,0.03);
+          color: var(--text);
+          background: var(--surface-raised);
         }
 
         /* Card body */
@@ -463,10 +488,11 @@ function LoginInner() {
           font-weight: 800;
           margin: 0 0 6px;
           letter-spacing: -0.02em;
+          color: var(--text);
         }
         .auth-card__sub {
           font-size: 0.85rem;
-          color: #a1a1aa;
+          color: var(--text-muted);
           margin: 0 0 22px;
           line-height: 1.5;
         }
@@ -482,8 +508,8 @@ function LoginInner() {
           margin-bottom: 18px;
           line-height: 1.4;
         }
-        .auth-alert--ok  { background: rgba(61,220,132,0.1); border: 1px solid rgba(61,220,132,0.3); color: #3ddc84; }
-        .auth-alert--err { background: rgba(255,45,45,0.1);  border: 1px solid rgba(255,45,45,0.3);  color: #ff6b6b; }
+        .auth-alert--ok  { background: rgba(61,220,132,0.12); border: 1px solid rgba(61,220,132,0.3); color: #10b981; }
+        .auth-alert--err { background: rgba(255,45,45,0.12);  border: 1px solid rgba(255,45,45,0.3);  color: #ef4444; }
 
         /* Form */
         .auth-form { display: flex; flex-direction: column; gap: 16px; }
@@ -491,26 +517,26 @@ function LoginInner() {
         .auth-label {
           font-size: 0.8rem;
           font-weight: 600;
-          color: #a1a1aa;
+          color: var(--text-muted);
           text-transform: uppercase;
           letter-spacing: 0.06em;
         }
         .auth-input {
-          background: #0a0a0a;
-          border: 1px solid #27272a;
+          background: var(--bg);
+          border: 1px solid var(--border);
           border-radius: 10px;
           padding: 11px 14px;
-          color: #fff;
+          color: var(--text);
           font-size: 0.92rem;
           font-family: inherit;
           width: 100%;
           transition: border-color 0.15s ease, box-shadow 0.15s ease;
           outline: none;
         }
-        .auth-input::placeholder { color: #a1a1aa; opacity: 0.6; }
+        .auth-input::placeholder { color: var(--text-muted); opacity: 0.6; }
         .auth-input:focus {
-          border-color: #ff2d2d;
-          box-shadow: 0 0 0 3px rgba(255,45,45,0.15);
+          border-color: var(--accent);
+          box-shadow: 0 0 0 3px rgba(0,0,0,0.1);
         }
         .auth-select { cursor: pointer; appearance: none; }
 
@@ -519,8 +545,8 @@ function LoginInner() {
           margin-top: 4px;
           width: 100%;
           padding: 13px;
-          background: #ff2d2d;
-          color: #fff;
+          background: var(--btn-bg);
+          color: var(--btn-text);
           border: none;
           border-radius: 10px;
           font-size: 0.95rem;
@@ -540,8 +566,8 @@ function LoginInner() {
         /* Spinner */
         .auth-spinner {
           width: 18px; height: 18px;
-          border: 2px solid rgba(255,255,255,0.3);
-          border-top-color: #fff;
+          border: 2px solid var(--border);
+          border-top-color: var(--text);
           border-radius: 50%;
           animation: spin 0.7s linear infinite;
           display: inline-block;
@@ -554,7 +580,7 @@ function LoginInner() {
           margin: 14px auto 0;
           background: none;
           border: none;
-          color: #a1a1aa;
+          color: var(--text-muted);
           font-size: 0.82rem;
           cursor: pointer;
           font-family: inherit;
@@ -562,20 +588,20 @@ function LoginInner() {
           text-decoration: underline;
           text-underline-offset: 3px;
         }
-        .auth-forgot:hover { color: #fff; }
+        .auth-forgot:hover { color: var(--text); }
 
         /* Footer */
         .auth-card__footer {
           padding: 16px 28px 20px;
-          border-top: 1px solid #27272a;
+          border-top: 1px solid var(--border);
           text-align: center;
           font-size: 0.84rem;
-          color: #a1a1aa;
+          color: var(--text-muted);
         }
         .auth-switch {
           background: none;
           border: none;
-          color: #ff2d2d;
+          color: var(--text);
           font-size: 0.84rem;
           font-weight: 700;
           cursor: pointer;

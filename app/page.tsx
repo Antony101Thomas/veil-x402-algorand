@@ -177,11 +177,12 @@ export default function LandingPage() {
       router.replace(dashboardPath(session.role));
     } else {
       setHasSession(false);
+      router.replace('/login');
     }
   }, [router]);
 
-  if (hasSession === true) {
-    return <div style={{ minHeight: '100vh', background: '#000' }} />;
+  if (hasSession === true || hasSession === false) {
+    return <div style={{ minHeight: '100vh', background: 'var(--bg)' }} />;
   }
 
   const typedHeadline = useTypewriter(HERO_HEADLINE_PREFIX + HERO_HEADLINE_ACCENT, 35, true);

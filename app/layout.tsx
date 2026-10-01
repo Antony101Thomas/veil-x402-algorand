@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { ThemeProvider } from '../context/ThemeContext'
+import { InactivityProvider } from '../components/InactivityProvider'
 import { TopBar } from '../components/TopBar'
 import './globals.css'
 
@@ -13,8 +14,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en" suppressHydrationWarning>
       <body>
         <ThemeProvider>
-          <TopBar />
-          {children}
+          <InactivityProvider>
+            <TopBar />
+            {children}
+          </InactivityProvider>
         </ThemeProvider>
       </body>
     </html>
