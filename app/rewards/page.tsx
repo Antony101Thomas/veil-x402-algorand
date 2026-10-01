@@ -8,8 +8,8 @@ import { readSession, clearSession } from '@/lib/session';
 export default function RewardsPage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
-  const [points, setPoints] = useState<number>(120);
-  const [lifetime, setLifetime] = useState<number>(250);
+  const [points, setPoints] = useState<number>(0);
+  const [lifetime, setLifetime] = useState<number>(0);
   const [txs, setTxs] = useState<any[]>([]);
   const [redeemPoints, setRedeemPoints] = useState<number>(100);
   const [msg, setMsg] = useState<string | null>(null);
@@ -26,8 +26,8 @@ export default function RewardsPage() {
       try {
         const res = await fetch(`/api/rewards?userId=${s?.id || ''}`);
         const json = await res.json();
-        setPoints(json.totalPoints || 120);
-        setLifetime(json.lifetimePoints || 250);
+        setPoints(json.totalPoints || 0);
+        setLifetime(json.lifetimePoints || 0);
         setTxs(json.transactions || []);
       } catch (err) {
         console.error(err);

@@ -9,23 +9,7 @@ export async function GET() {
       .order('created_at', { ascending: false });
 
     if (error || !data || data.length === 0) {
-      return NextResponse.json({
-        hostRigs: [
-          {
-            id: 'host-rig-01',
-            host_name: "Anton's Workstation",
-            rig_name: "Anton's RTX 4080 Beast",
-            gpu: 'RTX 4080 16GB',
-            cpu: 'AMD Ryzen 9 7900X',
-            ram: '32 GB DDR5',
-            storage: '1 TB NVMe',
-            price_per_hour: 1.20,
-            status: 'online',
-            available_from: '10:00',
-            available_to: '22:00',
-          },
-        ],
-      });
+      return NextResponse.json({ hostRigs: [] });
     }
 
     return NextResponse.json({ hostRigs: data });

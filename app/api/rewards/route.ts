@@ -7,11 +7,7 @@ export async function GET(req: NextRequest) {
   const userId = searchParams.get('userId');
 
   if (!userId) {
-    return NextResponse.json({ totalPoints: 120, lifetimePoints: 250, transactions: [
-      { id: '1', delta: 50, reason: 'First Session Bonus', created_at: new Date().toISOString() },
-      { id: '2', delta: 20, reason: '5-Star Review Bonus', created_at: new Date().toISOString() },
-      { id: '3', delta: 50, reason: 'Session Reward (Beast Rig)', created_at: new Date().toISOString() },
-    ] });
+    return NextResponse.json({ totalPoints: 0, lifetimePoints: 0, transactions: [] });
   }
 
   try {

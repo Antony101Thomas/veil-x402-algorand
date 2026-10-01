@@ -10,7 +10,7 @@ export default function AgentDashboard() {
   const router = useRouter();
   const [session, setSession] = useState<Session | null>(null);
   const [activeSessions, setActiveSessions] = useState<any[]>([]);
-  const [points, setPoints] = useState<number>(120);
+  const [points, setPoints] = useState<number>(0);
   const [selectedUseCase, setSelectedUseCase] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
